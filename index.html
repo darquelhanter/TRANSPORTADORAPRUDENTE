@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Torre de Controle — Painel Operacional</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#14171b;
+    --panel:#1b1f24;
+    --panel-alt:#20252b;
+    --border:#2b3138;
+    --border-soft:#242a30;
+    --text:#e9e7e2;
+    --text-muted:#8b929b;
+    --text-faint:#5c636b;
+    --amber:#f2a900;
+    --amber-dim:#7a5c1a;
+    --teal:#2fbf87;
+    --coral:#e8604c;
+    --blue:#5b8ab8;
+    --radius:3px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; -webkit-font-smoothing:antialiased;}
+  h1,h2,h3,.headline{font-family:'Barlow Condensed',sans-serif; font-weight:600; letter-spacing:0.01em;}
+  .num{font-variant-numeric: tabular-nums;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  .app{display:grid; grid-template-columns:210px 1fr; min-height:100vh;}
+
+  /* Sidebar */
+  .sidebar{background:var(--panel); border-right:1px solid var(--border); padding:22px 0; position:sticky; top:0; height:100vh;}
+  .brand{padding:0 20px 22px 20px; border-bottom:1px solid var(--border-soft); margin-bottom:14px;}
+  .brand .mark{width:30px; height:30px; background:var(--amber); border-radius:2px; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed'; font-weight:700; color:#14171b; font-size:16px; margin-bottom:10px;}
+  .brand .name{font-family:'Barlow Condensed'; font-size:19px; font-weight:600; line-height:1.1;}
+  .brand .sub{font-size:11px; color:var(--text-muted); margin-top:2px;}
+
+  nav ul{list-style:none;}
+  nav a{display:flex; align-items:center; gap:10px; padding:10px 20px; color:var(--text-muted); text-decoration:none; font-size:14px; border-left:2px solid transparent; transition:color .15s, border-color .15s, background .15s;}
+  nav a:hover{color:var(--text); background:var(--panel-alt);}
+  nav a.active{color:var(--amber); border-left-color:var(--amber); background:var(--panel-alt); font-weight:500;}
+  nav .dot{width:5px; height:5px; border-radius:50%; background:currentColor; opacity:.6; flex-shrink:0;}
+
+  .sidebar-foot{position:absolute; bottom:0; width:210px; padding:16px 20px; border-top:1px solid var(--border-soft); font-size:11px; color:var(--text-faint); line-height:1.5;}
+
+  /* Main */
+  main{padding:0 32px 60px 32px; max-width:1180px;}
+  .topbar{display:flex; align-items:center; justify-content:space-between; padding:24px 0; border-bottom:1px solid var(--border-soft); margin-bottom:28px; position:sticky; top:0; background:var(--bg); z-index:5;}
+  .topbar h1{font-size:26px;}
+  .topbar .status{display:flex; align-items:center; gap:20px;}
+  .pill{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--teal); background:rgba(47,191,135,.08); border:1px solid rgba(47,191,135,.25); padding:5px 11px; border-radius:20px;}
+  .pill .blip{width:6px; height:6px; border-radius:50%; background:var(--teal); animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.35;}}
+  @media (prefers-reduced-motion: reduce){ .pill .blip{animation:none;} }
+  .clock{font-family:'IBM Plex Mono'; font-size:13px; color:var(--text-muted);}
+
+  section{margin-bottom:52px; scroll-margin-top:90px;}
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px;}
+  .section-head h2{font-size:22px; color:var(--text);}
+  .section-head .note{font-size:12px; color:var(--text-faint);}
+
+  /* KPI cards */
+  .kpi-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
+  .kpi{background:var(--panel); padding:18px 16px; border-left:2px solid transparent;}
+  .kpi.up{border-left-color:var(--teal);}
+  .kpi.down{border-left-color:var(--coral);}
+  .kpi .label{font-size:11.5px; color:var(--text-muted); margin-bottom:10px;}
+  .kpi .value{font-family:'Barlow Condensed'; font-size:32px; font-weight:600; line-height:1;}
+  .kpi .delta{font-size:12px; margin-top:8px; color:var(--text-faint);}
+  .kpi .delta.pos{color:var(--teal);}
+  .kpi .delta.neg{color:var(--coral);}
+
+  /* Grid panels */
+  .grid-2{display:grid; grid-template-columns:1.3fr 1fr; gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
+  .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:1px;}
+  .panel{background:var(--panel); padding:20px;}
+  .panel h3{font-size:16px; font-weight:500; margin-bottom:14px; color:var(--text);}
+  .panel-sub{font-size:11px; color:var(--text-faint); margin-top:-10px; margin-bottom:14px;}
+
+  canvas{max-height:230px;}
+
+  /* Tables */
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:left; font-weight:500; color:var(--text-faint); font-size:11px; text-transform:none; padding:8px 10px; border-bottom:1px solid var(--border-soft);}
+  td{padding:9px 10px; border-bottom:1px solid var(--border-soft); color:var(--text);}
+  tr:last-child td{border-bottom:none;}
+  .tag{display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:500;}
+  .tag.ok{background:rgba(47,191,135,.12); color:var(--teal);}
+  .tag.warn{background:rgba(242,169,0,.12); color:var(--amber);}
+  .tag.bad{background:rgba(232,96,76,.12); color:var(--coral);}
+
+  .live-list{display:flex; flex-direction:column; gap:0;}
+  .live-item{display:grid; grid-template-columns:90px 1fr 90px 70px; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--border-soft); font-size:13px;}
+  .live-item:last-child{border-bottom:none;}
+  .live-item .route{color:var(--text-muted); font-size:12px;}
+  .live-item .bar-track{height:4px; background:var(--panel-alt); border-radius:2px; overflow:hidden;}
+  .live-item .bar-fill{height:100%; background:var(--amber); border-radius:2px; transition:width 1.2s ease;}
+  .live-item .status{font-size:11px; text-align:right;}
+
+  .stat-inline{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border-soft);}
+  .stat-inline:last-child{border-bottom:none;}
+  .stat-inline .k{color:var(--text-muted); font-size:13px;}
+  .stat-inline .v{font-family:'Barlow Condensed'; font-size:18px; font-weight:600;}
+
+  /* Pipeline ponta a ponta */
+  .pipeline{display:flex; align-items:stretch; gap:0;}
+  .pipe-step{flex:1; position:relative; padding:14px 18px 14px 0;}
+  .pipe-step:not(:last-child)::after{content:'→'; position:absolute; right:2px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:15px;}
+  .pipe-step .pk{font-size:11px; color:var(--text-muted); margin-bottom:6px;}
+  .pipe-step .pv{font-family:'Barlow Condensed'; font-size:24px; font-weight:600;}
+  .pipe-step .pd{width:8px; height:8px; border-radius:50%; margin-bottom:8px;}
+
+  /* WhatsApp */
+  .wa-list{display:flex; flex-direction:column;}
+  .wa-item{display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--border-soft);}
+  .wa-item:last-child{border-bottom:none;}
+  .wa-avatar{width:32px; height:32px; border-radius:50%; background:var(--panel-alt); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:var(--teal); flex-shrink:0; border:1px solid var(--border);}
+  .wa-body{flex:1; min-width:0;}
+  .wa-name{font-size:13px; color:var(--text);}
+  .wa-msg{font-size:12px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:340px;}
+  .wa-meta{text-align:right; flex-shrink:0;}
+  .wa-time{font-size:11px; color:var(--text-faint);}
+  .wa-badge{display:inline-block; margin-top:4px; width:16px; height:16px; line-height:16px; border-radius:50%; background:var(--amber); color:#14171b; font-size:10px; font-weight:700;}
+
+  footer{padding-top:20px; border-top:1px solid var(--border-soft); font-size:11px; color:var(--text-faint);}
+
+  @media (max-width:880px){
+    .app{grid-template-columns:1fr;}
+    .sidebar{position:relative; height:auto;}
+    .sidebar-foot{position:relative; width:auto;}
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    .grid-2, .grid-3{grid-template-columns:1fr;}
+    main{padding:0 16px 40px 16px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">TC</div>
+      <div class="name">Torre de<br>Controle</div>
+      <div class="sub">Frente Operacional — Filial Sul</div>
+    </div>
+    <nav>
+      <ul>
+        <li><a href="#visao-geral" class="nav-link active"><span class="dot"></span>Visão Geral</a></li>
+        <li><a href="#operacional" class="nav-link"><span class="dot"></span>Operacional</a></li>
+        <li><a href="#compliance" class="nav-link"><span class="dot"></span>Compliance & ANTT</a></li>
+        <li><a href="#atendimento" class="nav-link"><span class="dot"></span>Atendimento (WhatsApp)</a></li>
+        <li><a href="#kpis" class="nav-link"><span class="dot"></span>Indicadores</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-foot">Dados simulados para fins de demonstração. Painel gerado a partir da estrutura de controle da frente.</div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <h1>Painel Operacional</h1>
+      <div class="status">
+        <div class="pill"><span class="blip"></span>Telemetria ativa</div>
+        <div class="clock" id="clock">--:--:--</div>
+      </div>
+    </div>
+
+    <!-- VISÃO GERAL -->
+    <section id="visao-geral">
+      <div class="section-head">
+        <h2>Visão Geral</h2>
+        <span class="note">Atualizado em tempo real</span>
+      </div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(2,1fr); max-width:520px;">
+        <div class="kpi up">
+          <div class="label">OTD — Entregas no prazo</div>
+          <div class="value num" id="kpi-otd">94.2%</div>
+          <div class="delta pos">↑ 1.8 pp vs meta (92%)</div>
+        </div>
+        <div class="kpi down">
+          <div class="label">Sinistralidade</div>
+          <div class="value num">1.3%</div>
+          <div class="delta neg">3 ocorrências no mês</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OPERACIONAL -->
+    <section id="operacional">
+      <div class="section-head">
+        <h2>Controle Operacional e Logístico</h2>
+        <span class="note">Rastreamento e documentação de viagens</span>
+      </div>
+      <div class="panel" style="border:1px solid var(--border); border-radius:var(--radius); margin-bottom:1px;">
+        <h3>Visibilidade ponta a ponta</h3>
+        <div class="panel-sub">Coleta → transferência → entrega → comprovante, em um único fluxo</div>
+        <div class="pipeline">
+          <div class="pipe-step"><div class="pd" style="background:var(--teal)"></div><div class="pk">Coleta</div><div class="pv num">52</div></div>
+          <div class="pipe-step"><div class="pd" style="background:var(--blue)"></div><div class="pk">Transferência</div><div class="pv num">31</div></div>
+          <div class="pipe-step"><div class="pd" style="background:var(--amber)"></div><div class="pk">Entrega</div><div class="pv num">44</div></div>
+          <div class="pipe-step"><div class="pd" style="background:var(--text-faint)"></div><div class="pk">Comprovante pendente</div><div class="pv num" style="color:var(--coral)">7</div></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Viagens em andamento</h3>
+          <div class="panel-sub">Posição via telemetria — atualização automática</div>
+          <div class="live-list" id="live-trips"></div>
+        </div>
+        <div class="panel">
+          <h3>Checklist de saída — hoje</h3>
+          <canvas id="chart-checklist"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMPLIANCE -->
+    <section id="compliance">
+      <div class="section-head">
+        <h2>Compliance, Fiscal e ANTT</h2>
+        <span class="note">CT-e, MDF-e, CIOT e piso mínimo de frete</span>
+      </div>
+      <div class="grid-3">
+        <div class="panel">
+          <h3>Documentos fiscais — hoje</h3>
+          <div class="stat-inline"><span class="k">CT-e emitidos</span><span class="v num">128</span></div>
+          <div class="stat-inline"><span class="k">MDF-e emitidos</span><span class="v num">34</span></div>
+          <div class="stat-inline"><span class="k">CIOT registrados</span><span class="v num">41</span></div>
+          <div class="stat-inline"><span class="k">Pendentes de validação</span><span class="v num" style="color:var(--amber)">3</span></div>
+        </div>
+        <div class="panel">
+          <h3>Status de validação</h3>
+          <canvas id="chart-fiscal"></canvas>
+        </div>
+        <div class="panel">
+          <h3>Conformidade ANTT</h3>
+          <div class="stat-inline"><span class="k">Fretes verificados no mês</span><span class="v num">312</span></div>
+          <div class="stat-inline"><span class="k">Abaixo do piso mínimo</span><span class="v num" style="color:var(--coral)">4</span></div>
+          <div class="stat-inline"><span class="k">Regularização pendente</span><span class="v num" style="color:var(--amber)">2</span></div>
+          <div class="stat-inline"><span class="k">Conformidade geral</span><span class="v num" style="color:var(--teal)">98,7%</span></div>
+        </div>
+      </div>
+      <div class="panel" style="border:1px solid var(--border); border-radius:var(--radius);">
+        <h3>Piso mínimo de frete — verificação por rota</h3>
+        <table>
+          <thead><tr><th>Rota</th><th>Eixo/Carga</th><th>Valor cobrado</th><th>Piso ANTT</th><th>Status</th></tr></thead>
+          <tbody id="tbl-antt"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ATENDIMENTO -->
+    <section id="atendimento">
+      <div class="section-head">
+        <h2>Atendimento via WhatsApp</h2>
+        <span class="pill" style="color:var(--teal);"><span class="blip" style="background:var(--teal);"></span>WhatsApp Business conectado</span>
+      </div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom:1px;">
+        <div class="kpi up">
+          <div class="label">Conversas ativas</div>
+          <div class="value num" id="kpi-wa-ativas">17</div>
+          <div class="delta pos">4 aguardando resposta</div>
+        </div>
+        <div class="kpi up">
+          <div class="label">Tempo médio de 1ª resposta</div>
+          <div class="value num">2m 14s</div>
+          <div class="delta pos">↓ dentro da meta (5min)</div>
+        </div>
+        <div class="kpi up">
+          <div class="label">Taxa de resolução</div>
+          <div class="value num">93%</div>
+          <div class="delta pos">sem escalonamento humano</div>
+        </div>
+        <div class="kpi down">
+          <div class="label">Atendimentos hoje</div>
+          <div class="value num">86</div>
+          <div class="delta neg">↑ 12% vs média diária</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Conversas recentes</h3>
+          <div class="panel-sub">Motoristas, clientes e transportadoras parceiras</div>
+          <div class="wa-list" id="wa-list"></div>
+        </div>
+        <div class="panel">
+          <h3>Volume de mensagens — últimos 7 dias</h3>
+          <canvas id="chart-whatsapp"></canvas>
+          <div style="margin-top:14px;">
+            <div class="stat-inline"><span class="k">Consulta de status de entrega</span><span class="v num">41%</span></div>
+            <div class="stat-inline"><span class="k">Envio de canhoto/comprovante</span><span class="v num">27%</span></div>
+            <div class="stat-inline"><span class="k">Ocorrência ou avaria</span><span class="v num">18%</span></div>
+            <div class="stat-inline"><span class="k">Outros</span><span class="v num">14%</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- KPIS -->
+    <section id="kpis">
+      <div class="section-head">
+        <h2>Indicadores de Desempenho</h2>
+        <span class="note">Tendências operacionais</span>
+      </div>
+      <div class="panel" style="border:1px solid var(--border); border-radius:var(--radius); margin-bottom:1px;">
+        <h3>OTD — últimas 12 semanas</h3>
+        <canvas id="chart-otd"></canvas>
+      </div>
+      <div class="panel" style="border:1px solid var(--border); border-radius:var(--radius);">
+        <h3>Índice de ocorrências por tipo</h3>
+        <canvas id="chart-ocorrencias"></canvas>
+      </div>
+    </section>
+
+    <footer>Painel de demonstração — estrutura baseada no documento de controle de frente. Todos os valores são simulados.</footer>
+  </main>
+</div>
+
+<script>
+/* ---------- Chart.js defaults ---------- */
+Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+Chart.defaults.color = '#8b929b';
+Chart.defaults.borderColor = '#2b3138';
+const AMBER='#f2a900', TEAL='#2fbf87', CORAL='#e8604c', BLUE='#5b8ab8', GREY='#3a4149';
+
+/* ---------- Clock ---------- */
+function tickClock(){
+  const d = new Date();
+  document.getElementById('clock').textContent = d.toLocaleTimeString('pt-BR');
+}
+tickClock(); setInterval(tickClock, 1000);
+
+/* ---------- Scroll spy ---------- */
+const links = document.querySelectorAll('.nav-link');
+const sections = document.querySelectorAll('main section');
+const spy = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      links.forEach(l=>l.classList.remove('active'));
+      const link = document.querySelector('.nav-link[href="#'+e.target.id+'"]');
+      if(link) link.classList.add('active');
+    }
+  });
+}, {rootMargin:'-40% 0px -50% 0px'});
+sections.forEach(s=>spy.observe(s));
+
+/* ---------- Checklist donut ---------- */
+new Chart(document.getElementById('chart-checklist'), {
+  type:'doughnut',
+  data:{labels:['Aprovado','Pendente','Reprovado'], datasets:[{data:[34,5,2], backgroundColor:[TEAL,AMBER,CORAL], borderColor:'#1b1f24', borderWidth:2}]},
+  options:{plugins:{legend:{position:'bottom', labels:{boxWidth:8, padding:14, font:{size:11}}}}, cutout:'65%'}
+});
+
+/* ---------- Fiscal validation status ---------- */
+new Chart(document.getElementById('chart-fiscal'), {
+  type:'doughnut',
+  data:{labels:['Validado','Pendente','Rejeitado'], datasets:[{data:[186,14,3], backgroundColor:[TEAL,AMBER,CORAL], borderColor:'#1b1f24', borderWidth:2}]},
+  options:{plugins:{legend:{position:'bottom', labels:{boxWidth:8, padding:14, font:{size:11}}}}, cutout:'65%'}
+});
+
+/* ---------- ANTT piso mínimo table ---------- */
+const anttData = [
+  {rota:'Curitiba → São Paulo', eixo:'6 eixos', cobrado:'R$ 4.820', piso:'R$ 4.650', status:'ok'},
+  {rota:'Curitiba → Florianópolis', eixo:'5 eixos', cobrado:'R$ 3.100', piso:'R$ 3.280', status:'bad'},
+  {rota:'Araucária → Londrina', eixo:'4 eixos', cobrado:'R$ 2.480', piso:'R$ 2.410', status:'ok'},
+  {rota:'Curitiba → Joinville', eixo:'6 eixos', cobrado:'R$ 2.690', piso:'R$ 2.750', status:'warn'},
+  {rota:'Ponta Grossa → Curitiba', eixo:'3 eixos', cobrado:'R$ 1.340', piso:'R$ 1.290', status:'ok'},
+];
+document.getElementById('tbl-antt').innerHTML = anttData.map(a=>`
+  <tr><td>${a.rota}</td><td>${a.eixo}</td><td class="num">${a.cobrado}</td><td class="num">${a.piso}</td>
+  <td><span class="tag ${a.status}">${a.status==='ok'?'Conforme':a.status==='warn'?'No limite':'Abaixo do piso'}</span></td></tr>`).join('');
+
+/* ---------- WhatsApp volume chart ---------- */
+new Chart(document.getElementById('chart-whatsapp'), {
+  type:'bar',
+  data:{labels:['Qui','Sex','Sáb','Dom','Seg','Ter','Qua'], datasets:[
+    {label:'Mensagens recebidas', data:[210,244,98,62,268,251,231], backgroundColor:TEAL, borderRadius:2}
+  ]},
+  options:{scales:{x:{grid:{display:false}}, y:{grid:{color:'#242a30'}}}, plugins:{legend:{display:false}}}
+});
+
+/* ---------- WhatsApp conversation list ---------- */
+const waConvos = [
+  {nome:'Adilson Rocha', iniciais:'AR', msg:'Cheguei no cliente, vou descarregar agora', tempo:'agora', unread:1},
+  {nome:'Cliente — Metalúrgica Vitória', iniciais:'MV', msg:'Qual o status da carga CT-e 88213?', tempo:'2 min', unread:2},
+  {nome:'Elaine Souza', iniciais:'ES', msg:'Enviando o canhoto assinado', tempo:'6 min', unread:0},
+  {nome:'Transportadora Parceira', iniciais:'TP', msg:'Confirmando coleta para amanhã 08h', tempo:'14 min', unread:0},
+  {nome:'Marcos Vinícius', iniciais:'MV', msg:'Tive um imprevisto, parada técnica na BR-277', tempo:'21 min', unread:1},
+];
+document.getElementById('wa-list').innerHTML = waConvos.map(w=>`
+  <div class="wa-item">
+    <div class="wa-avatar">${w.iniciais}</div>
+    <div class="wa-body">
+      <div class="wa-name">${w.nome}</div>
+      <div class="wa-msg">${w.msg}</div>
+    </div>
+    <div class="wa-meta">
+      <div class="wa-time">${w.tempo}</div>
+      ${w.unread ? `<div class="wa-badge">${w.unread}</div>` : ''}
+    </div>
+  </div>`).join('');
+
+/* ---------- OTD trend ---------- */
+const weeks = Array.from({length:12},(_,i)=>'S'+(i+1));
+const otdData = [91.2,92.5,90.8,93.1,94.0,92.7,95.1,93.8,94.6,93.2,95.4,94.2];
+new Chart(document.getElementById('chart-otd'), {
+  type:'line',
+  data:{labels:weeks, datasets:[
+    {label:'OTD %', data:otdData, borderColor:AMBER, backgroundColor:'rgba(242,169,0,0.08)', fill:true, tension:.35, pointRadius:2, pointBackgroundColor:AMBER},
+    {label:'Meta 92%', data:weeks.map(()=>92), borderColor:GREY, borderDash:[4,3], pointRadius:0, borderWidth:1.5}
+  ]},
+  options:{scales:{y:{min:85, max:100, grid:{color:'#242a30'}}, x:{grid:{display:false}}}, plugins:{legend:{position:'bottom', labels:{boxWidth:8, font:{size:11}}}}}
+});
+
+/* ---------- Ocorrências ---------- */
+new Chart(document.getElementById('chart-ocorrencias'), {
+  type:'bar',
+  data:{labels:['Avarias','Extravios','Sinistros','Multas'], datasets:[
+    {data:[9,3,3,11], backgroundColor:[BLUE,AMBER,CORAL,GREY], borderRadius:2}
+  ]},
+  options:{scales:{x:{grid:{display:false}}, y:{grid:{color:'#242a30'}}}, plugins:{legend:{display:false}}}
+});
+
+/* ---------- Live trips simulation ---------- */
+const trips = [
+  {id:'VC-014', route:'Curitiba → Joinville', progress:62, status:'Em rota'},
+  {id:'VC-022', route:'São Paulo → Curitiba', progress:28, status:'Em rota'},
+  {id:'VC-008', route:'Curitiba → Florianópolis', progress:88, status:'Chegando'},
+  {id:'VC-031', route:'Araucária → Ponta Grossa', progress:12, status:'Em rota'},
+  {id:'VC-019', route:'Curitiba → Londrina', progress:45, status:'Parada técnica'},
+];
+function renderTrips(){
+  document.getElementById('live-trips').innerHTML = trips.map(t=>`
+    <div class="live-item">
+      <div class="mono">${t.id}</div>
+      <div>
+        <div class="route">${t.route}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${t.progress}%"></div></div>
+      </div>
+      <div class="status" style="color:${t.status==='Parada técnica'?'var(--amber)':'var(--text-muted)'}">${t.status}</div>
+      <div class="num" style="text-align:right;">${t.progress}%</div>
+    </div>`).join('');
+}
+renderTrips();
+setInterval(()=>{
+  trips.forEach(t=>{
+    if(t.status!=='Parada técnica' && t.progress<100){
+      t.progress = Math.min(100, t.progress + Math.floor(Math.random()*4)+1);
+      if(t.progress>=95) t.status='Chegando';
+    }
+    if(t.progress>=100){ t.progress=8; t.status='Em rota'; }
+  });
+  renderTrips();
+}, 3500);
+
+/* ---------- KPI micro-flutter for control-room feel ---------- */
+setInterval(()=>{
+  const otdEl = document.getElementById('kpi-otd');
+  const base = 94.2 + (Math.random()*0.6 - 0.3);
+  otdEl.textContent = base.toFixed(1)+'%';
+}, 5000);
+</script>
+</body>
+</html>
