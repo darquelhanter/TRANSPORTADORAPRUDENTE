@@ -144,7 +144,22 @@ const UF_LIST = [
   {sigla:'RS',nome:'Rio Grande do Sul'},{sigla:'RO',nome:'Rondônia'},{sigla:'RR',nome:'Roraima'},{sigla:'SC',nome:'Santa Catarina'},
   {sigla:'SP',nome:'São Paulo'},{sigla:'SE',nome:'Sergipe'},{sigla:'TO',nome:'Tocantins'}
 ];
-const ROAD_FACTOR = 1.35; // linha reta -> estimativa de km de rodovia
+const ROAD_FACTOR = 1.35; // linha reta -> estimativa de km de rodovia (usado só se não houver rota real)
+
+/* =====================================================================
+   OpenRouteService — distância de ROTA REAL para veículo pesado (perfil
+   driving-hgv). Chave gratuita em openrouteservice.org (2.000 req/dia).
+
+   A chave NUNCA fica no código-fonte (este repositório é público) — cada
+   navegador guarda a sua própria no localStorage. Configure em Cadastro
+   de Frete, na caixa "Rota real (opcional)".
+   ===================================================================== */
+const ORS_KEY_STORAGE = 'tc_ors_key';
+function getOrsKey(){ try { return (localStorage.getItem(ORS_KEY_STORAGE) || '').trim(); } catch { return ''; } }
+function setOrsKey(k){ try {
+  const v = (k || '').trim();
+  if (v) localStorage.setItem(ORS_KEY_STORAGE, v); else localStorage.removeItem(ORS_KEY_STORAGE);
+} catch {} }
 
 async function getCidades(uf){
   const cacheKey = 'tc_cidades_' + uf;
@@ -182,13 +197,33 @@ function haversineKm(lat1, lon1, lat2, lon2){
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-/* Retorna { km, estimado:true } ou null se alguma cidade não foi geocodificada. */
+/* Rota real via OpenRouteService (perfil de veículo pesado). Retorna km ou null. */
+async function distanciaViaORS(a, b){
+  const key = getOrsKey();
+  if (!key) return null;
+  const url = `https://api.openrouteservice.org/v2/directions/driving-hgv?api_key=${encodeURIComponent(key)}&start=${a.lon},${a.lat}&end=${b.lon},${b.lat}`;
+  const r = await fetch(url);
+  if (!r.ok) return null;
+  const data = await r.json();
+  const metros = data?.features?.[0]?.properties?.summary?.distance;
+  return isFinite(metros) ? Math.round(metros/1000) : null;
+}
+
+/* Distância entre duas cidades. Tenta rota real (ORS, veículo pesado) e cai
+   para a estimativa por linha reta se a chave não estiver configurada ou a
+   chamada falhar. Retorna { km, estimado, fonte } ou null se não geocodificou. */
 async function distanciaEstimada(origemCidade, origemUf, destinoCidade, destinoUf){
   const [a, b] = await Promise.all([
     getCoordCidade(origemCidade, origemUf),
     getCoordCidade(destinoCidade, destinoUf)
   ]);
   if (!a || !b) return null;
+
+  try {
+    const kmRota = await distanciaViaORS(a, b);
+    if (kmRota != null) return { km: kmRota, estimado: false, fonte: 'rota real — OpenRouteService, veículo pesado' };
+  } catch (err) { console.warn('OpenRouteService falhou, usando estimativa por linha reta:', err.message); }
+
   const km = haversineKm(a.lat, a.lon, b.lat, b.lon) * ROAD_FACTOR;
-  return { km: Math.round(km), estimado: true };
+  return { km: Math.round(km), estimado: true, fonte: 'estimativa por linha reta ajustada' };
 }

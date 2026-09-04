@@ -425,6 +425,15 @@
           </div>
         </div>
         <div class="box">
+          <h3>Rota real (opcional)</h3>
+          <p class="sub">Chave gratuita do <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener">OpenRouteService</a> — fica salva só neste navegador, nunca é enviada ao repositório.</p>
+          <input id="ors-key-input" class="mono-in" placeholder="cole sua chave aqui" style="width:100%; font-size:12px; color:var(--text); background:var(--panel-alt); border:1px solid var(--border); border-radius:2px; padding:8px 10px; margin-bottom:8px;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button type="button" class="btn-ghost" id="ors-save-btn">Salvar chave</button>
+            <span id="ors-status" style="font-size:11px;"></span>
+          </div>
+        </div>
+        <div class="box">
           <p class="official">
             Coeficientes de referência baseados na sistemática da Resolução ANTT nº 6.076/2026 (fórmula
             <span class="mono">piso = km × CCD + CC</span>). <strong>Não substituem a tabela oficial.</strong>
@@ -514,7 +523,9 @@ async function tentarCalcularDistancia(auto){
     const res = await distanciaEstimada(oCid, oUf, dCid, dUf);
     if(res){
       $('distancia').value = res.km;
-      hint.textContent = 'Estimativa por rota aproximada (linha reta × 1,35) — ajuste se souber o km exato da rota.';
+      hint.textContent = res.estimado
+        ? 'Estimativa por linha reta ajustada — ajuste se souber o km exato da rota.'
+        : 'Calculado por rota real (OpenRouteService, perfil de veículo pesado). Ajuste se necessário.';
       updateRail();
     } else if(!auto) {
       hint.textContent = 'Não encontrei coordenadas para uma das cidades — informe o km manualmente.';
@@ -526,6 +537,22 @@ async function tentarCalcularDistancia(auto){
   }
 }
 $('calc-dist-btn').addEventListener('click', ()=> tentarCalcularDistancia(false));
+
+/* ---------- Chave do OpenRouteService (fica só neste navegador) ---------- */
+function refreshOrsStatus(){
+  const k = getOrsKey();
+  $('ors-key-input').value = k;
+  const status = $('ors-status');
+  status.textContent = k ? '✓ configurada — a distância vai tentar rota real' : 'sem chave — usando estimativa por linha reta';
+  status.style.color = k ? 'var(--teal)' : 'var(--text-faint)';
+}
+$('ors-save-btn').addEventListener('click', ()=>{
+  setOrsKey($('ors-key-input').value);
+  refreshOrsStatus();
+  showToast(getOrsKey() ? 'Chave salva neste navegador.' : 'Chave removida — voltando à estimativa por linha reta.');
+});
+refreshOrsStatus();
+
 /* calcula sozinho assim que origem e destino estiverem completos, se o km ainda não foi digitado */
 ['origemCidade','destinoCidade'].forEach(id=>{
   $(id).addEventListener('change', ()=>{ if(!$('distancia').value.trim()) tentarCalcularDistancia(true); });
