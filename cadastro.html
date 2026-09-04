@@ -425,8 +425,8 @@
           </div>
         </div>
         <div class="box">
-          <h3>Rota real (opcional)</h3>
-          <p class="sub">Chave gratuita do <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener">OpenRouteService</a> — fica salva só neste navegador, nunca é enviada ao repositório.</p>
+          <h3>Rota real (equipe)</h3>
+          <p class="sub">Chave gratuita do <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener">OpenRouteService</a> — fica salva no banco (Supabase), vale para todos que logarem, nunca vai para o repositório.</p>
           <input id="ors-key-input" class="mono-in" placeholder="cole sua chave aqui" style="width:100%; font-size:12px; color:var(--text); background:var(--panel-alt); border:1px solid var(--border); border-radius:2px; padding:8px 10px; margin-bottom:8px;">
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <button type="button" class="btn-ghost" id="ors-save-btn">Salvar chave</button>
@@ -538,20 +538,27 @@ async function tentarCalcularDistancia(auto){
 }
 $('calc-dist-btn').addEventListener('click', ()=> tentarCalcularDistancia(false));
 
-/* ---------- Chave do OpenRouteService (fica só neste navegador) ---------- */
-function refreshOrsStatus(){
-  const k = getOrsKey();
+/* ---------- Chave do OpenRouteService (compartilhada via Supabase) ---------- */
+async function refreshOrsStatus(){
+  const k = await getOrsKey();
   $('ors-key-input').value = k;
   const status = $('ors-status');
-  status.textContent = k ? '✓ configurada — a distância vai tentar rota real' : 'sem chave — usando estimativa por linha reta';
+  status.textContent = k ? '✓ configurada para toda a equipe — a distância vai tentar rota real' : 'sem chave — usando estimativa por linha reta';
   status.style.color = k ? 'var(--teal)' : 'var(--text-faint)';
 }
-$('ors-save-btn').addEventListener('click', ()=>{
-  setOrsKey($('ors-key-input').value);
-  refreshOrsStatus();
-  showToast(getOrsKey() ? 'Chave salva neste navegador.' : 'Chave removida — voltando à estimativa por linha reta.');
+$('ors-save-btn').addEventListener('click', async ()=>{
+  const btn = $('ors-save-btn');
+  btn.disabled = true;
+  try {
+    await setOrsKey($('ors-key-input').value);
+    await refreshOrsStatus();
+    showToast($('ors-key-input').value.trim() ? 'Chave salva para toda a equipe.' : 'Chave removida — voltando à estimativa por linha reta.');
+  } catch (err) {
+    showToast('Não consegui salvar a chave: ' + err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
 });
-refreshOrsStatus();
 
 /* calcula sozinho assim que origem e destino estiverem completos, se o km ainda não foi digitado */
 ['origemCidade','destinoCidade'].forEach(id=>{
@@ -788,6 +795,11 @@ function showToast(msg, isError){
     await render();
   } catch (err) {
     showToast('Erro ao carregar fretes: ' + err.message, true);
+  }
+  try {
+    await refreshOrsStatus();
+  } catch (err) {
+    console.warn('Não consegui checar a chave do OpenRouteService:', err.message);
   }
 })().catch(err => console.warn('init:', err.message));
 </script>

@@ -150,16 +150,38 @@ const ROAD_FACTOR = 1.35; // linha reta -> estimativa de km de rodovia (usado s�
    OpenRouteService — distância de ROTA REAL para veículo pesado (perfil
    driving-hgv). Chave gratuita em openrouteservice.org (2.000 req/dia).
 
-   A chave NUNCA fica no código-fonte (este repositório é público) — cada
-   navegador guarda a sua própria no localStorage. Configure em Cadastro
-   de Frete, na caixa "Rota real (opcional)".
+   A chave NUNCA fica no código-fonte (este repositório é público) — fica
+   guardada na tabela app_config do Supabase, compartilhada entre todos os
+   usuários autenticados. Configure em Cadastro de Frete, na caixa
+   "Rota real (equipe)". Cacheada em memória durante a sessão da página.
    ===================================================================== */
-const ORS_KEY_STORAGE = 'tc_ors_key';
-function getOrsKey(){ try { return (localStorage.getItem(ORS_KEY_STORAGE) || '').trim(); } catch { return ''; } }
-function setOrsKey(k){ try {
+const ORS_CONFIG_KEY = 'ors_api_key';
+let _orsKeyCache = null;
+
+async function getOrsKey(){
+  if (_orsKeyCache !== null) return _orsKeyCache;
+  try {
+    const { data, error } = await sb.from('app_config').select('valor').eq('chave', ORS_CONFIG_KEY).maybeSingle();
+    if (error) throw error;
+    _orsKeyCache = (data?.valor || '').trim();
+  } catch (err) {
+    console.warn('Não consegui ler a chave do OpenRouteService:', err.message);
+    _orsKeyCache = '';
+  }
+  return _orsKeyCache;
+}
+
+async function setOrsKey(k){
   const v = (k || '').trim();
-  if (v) localStorage.setItem(ORS_KEY_STORAGE, v); else localStorage.removeItem(ORS_KEY_STORAGE);
-} catch {} }
+  if (v) {
+    const { error } = await sb.from('app_config').upsert({ chave: ORS_CONFIG_KEY, valor: v, atualizado_em: new Date().toISOString() });
+    if (error) throw error;
+  } else {
+    const { error } = await sb.from('app_config').delete().eq('chave', ORS_CONFIG_KEY);
+    if (error) throw error;
+  }
+  _orsKeyCache = v;
+}
 
 async function getCidades(uf){
   const cacheKey = 'tc_cidades_' + uf;
@@ -199,7 +221,7 @@ function haversineKm(lat1, lon1, lat2, lon2){
 
 /* Rota real via OpenRouteService (perfil de veículo pesado). Retorna km ou null. */
 async function distanciaViaORS(a, b){
-  const key = getOrsKey();
+  const key = await getOrsKey();
   if (!key) return null;
   const url = `https://api.openrouteservice.org/v2/directions/driving-hgv?api_key=${encodeURIComponent(key)}&start=${a.lon},${a.lat}&end=${b.lon},${b.lat}`;
   const r = await fetch(url);

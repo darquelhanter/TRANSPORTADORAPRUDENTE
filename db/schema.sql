@@ -78,10 +78,58 @@ create policy "fretes_delete" on public.fretes
   for delete to authenticated using (true);
 
 -- =====================================================================
+-- Configurações compartilhadas da equipe (ex.: chave do OpenRouteService).
+-- Fica no banco (protegida por login), nunca no repositório do GitHub,
+-- e vale para todos os usuários autenticados.
+-- =====================================================================
+create table if not exists public.app_config (
+  chave           text primary key,
+  valor           text,
+  atualizado_em   timestamptz not null default now(),
+  atualizado_por  uuid default auth.uid()
+);
+
+alter table public.app_config enable row level security;
+
+drop policy if exists "app_config_select" on public.app_config;
+drop policy if exists "app_config_upsert" on public.app_config;
+drop policy if exists "app_config_update" on public.app_config;
+drop policy if exists "app_config_delete" on public.app_config;
+
+create policy "app_config_select" on public.app_config
+  for select to authenticated using (true);
+
+create policy "app_config_upsert" on public.app_config
+  for insert to authenticated with check (true);
+
+create policy "app_config_update" on public.app_config
+  for update to authenticated using (true) with check (true);
+
+create policy "app_config_delete" on public.app_config
+  for delete to authenticated using (true);
+
+-- =====================================================================
 -- Migrações incrementais — rode só a que ainda não rodou no seu projeto.
--- (create table acima já cria valor_motorista para instalações novas)
+-- (create table acima já cria valor_motorista e app_config para instalações novas)
 -- =====================================================================
 
 -- 2026-09-04: separa valor cobrado do cliente e valor pago ao motorista
 -- (a empresa é corretora de frete: a margem é a diferença entre os dois)
 alter table public.fretes add column if not exists valor_motorista numeric;
+
+-- 2026-09-04: configurações compartilhadas (chave do OpenRouteService etc.)
+create table if not exists public.app_config (
+  chave           text primary key,
+  valor           text,
+  atualizado_em   timestamptz not null default now(),
+  atualizado_por  uuid default auth.uid()
+);
+alter table public.app_config enable row level security;
+drop policy if exists "app_config_select" on public.app_config;
+drop policy if exists "app_config_upsert" on public.app_config;
+drop policy if exists "app_config_update" on public.app_config;
+drop policy if exists "app_config_delete" on public.app_config;
+create policy "app_config_select" on public.app_config for select to authenticated using (true);
+create policy "app_config_upsert" on public.app_config for insert to authenticated with check (true);
+create policy "app_config_update" on public.app_config for update to authenticated using (true) with check (true);
+create policy "app_config_delete" on public.app_config for delete to authenticated using (true);
