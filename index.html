@@ -3,166 +3,112 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Painel operacional de demonstração — torre de controle logística com KPIs, rastreamento de viagens, compliance ANTT e atendimento via WhatsApp. Dados simulados.">
+<meta name="description" content="Torre de Controle — painel operacional com indicadores calculados a partir dos fretes cadastrados: andamento, conformidade ANTT e piso mínimo.">
 <title>Torre de Controle — Painel Operacional</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
   :root{
-    --bg:#14171b;
-    --panel:#1b1f24;
-    --panel-alt:#20252b;
-    --border:#2b3138;
-    --border-soft:#242a30;
-    --text:#e9e7e2;
-    --text-muted:#8b929b;
-    --text-faint:#949aa4;
-    --amber:#f2a900;
-    --amber-dim:#7a5c1a;
-    --teal:#2fbf87;
-    --coral:#e8604c;
-    --blue:#5b8ab8;
-    --radius:3px;
-    --kpi-cols:5;
+    --bg:#14171b; --panel:#1b1f24; --panel-alt:#20252b; --border:#2b3138; --border-soft:#242a30;
+    --text:#e9e7e2; --text-muted:#8b929b; --text-faint:#949aa4;
+    --amber:#f2a900; --teal:#2fbf87; --coral:#e8604c; --blue:#5b8ab8; --radius:3px; --kpi-cols:4;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; -webkit-font-smoothing:antialiased;}
-  h1,h2,h3,.headline{font-family:'Barlow Condensed',sans-serif; font-weight:600; letter-spacing:0.01em;}
-  .num{font-variant-numeric: tabular-nums;}
-  .mono{font-family:'IBM Plex Mono',monospace;}
+  html,body{background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
+  h1,h2,h3{font-family:'Barlow Condensed',sans-serif; font-weight:600; letter-spacing:.01em;}
+  .num{font-variant-numeric:tabular-nums;}
+  .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--amber);}
+  a:focus-visible, button:focus-visible{outline:2px solid var(--amber); outline-offset:2px; border-radius:2px;}
+  :focus:not(:focus-visible){outline:none;}
 
   .app{display:grid; grid-template-columns:210px 1fr; min-height:100vh;}
-
-  /* Sidebar */
   .sidebar{background:var(--panel); border-right:1px solid var(--border); padding:22px 0; position:sticky; top:0; height:100vh;}
-  .brand{padding:0 20px 22px 20px; border-bottom:1px solid var(--border-soft); margin-bottom:14px;}
+  .brand{padding:0 20px 22px; border-bottom:1px solid var(--border-soft); margin-bottom:14px;}
   .brand .mark{width:30px; height:30px; background:var(--amber); border-radius:2px; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed'; font-weight:700; color:#14171b; font-size:16px; margin-bottom:10px;}
   .brand .name{font-family:'Barlow Condensed'; font-size:19px; font-weight:600; line-height:1.1;}
   .brand .sub{font-size:11px; color:var(--text-muted); margin-top:2px;}
-
   nav ul{list-style:none;}
   nav a{display:flex; align-items:center; gap:10px; padding:12px 20px; color:var(--text-muted); text-decoration:none; font-size:14px; border-left:2px solid transparent; transition:color .15s, border-color .15s, background .15s;}
   nav a:hover{color:var(--text); background:var(--panel-alt);}
   nav a.active{color:var(--amber); border-left-color:var(--amber); background:var(--panel-alt); font-weight:500;}
   nav .dot{width:5px; height:5px; border-radius:50%; background:currentColor; opacity:.6; flex-shrink:0;}
-
-  /* Keyboard focus — visible on the dark ground (WCAG 2.4.7 / 2.4.11) */
-  a:focus-visible, button:focus-visible{outline:2px solid var(--amber); outline-offset:2px; border-radius:2px;}
-  :focus:not(:focus-visible){outline:none;}
-
   .sidebar-foot{position:absolute; bottom:0; width:210px; padding:16px 20px; border-top:1px solid var(--border-soft); font-size:11px; color:var(--text-faint); line-height:1.5;}
 
-  /* Main */
-  main{padding:0 32px 60px 32px; max-width:1180px;}
-  .topbar{display:flex; align-items:center; justify-content:space-between; padding:24px 0; border-bottom:1px solid var(--border-soft); margin-bottom:28px; position:sticky; top:0; background:var(--bg); z-index:5;}
+  main{padding:0 32px 80px; max-width:1220px;}
+  .topbar{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:24px 0; border-bottom:1px solid var(--border-soft); margin-bottom:28px; position:sticky; top:0; background:var(--bg); z-index:5;}
   .topbar h1{font-size:26px;}
-  .topbar .status{display:flex; align-items:center; gap:20px;}
-  .pill{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--teal); background:rgba(47,191,135,.08); border:1px solid rgba(47,191,135,.25); padding:5px 11px; border-radius:20px;}
-  .pill .blip{width:6px; height:6px; border-radius:50%; background:var(--teal); animation:pulse 2s ease-in-out infinite;}
-  .pill.stale{color:var(--amber); background:rgba(242,169,0,.08); border-color:rgba(242,169,0,.3);}
-  .pill.stale .blip{background:var(--amber); animation:none;}
-  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.35;}}
-  .clock{font-family:'IBM Plex Mono'; font-size:13px; color:var(--text-muted);}
-  .live-since{font-family:'IBM Plex Mono'; font-size:11px; color:var(--text-faint); white-space:nowrap;}
-  .live-toggle{font:inherit; font-size:12px; color:var(--text-muted); background:var(--panel-alt); border:1px solid var(--border); padding:5px 11px; border-radius:20px; cursor:pointer; transition:color .15s, border-color .15s;}
-  .live-toggle:hover{color:var(--text); border-color:var(--text-faint);}
+  .topbar .status{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+  .updated{font-size:11px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace;}
+  .btn-pill{font:inherit; font-size:12px; color:var(--text-muted); background:var(--panel-alt); border:1px solid var(--border); padding:5px 12px; border-radius:20px; cursor:pointer; transition:color .15s,border-color .15s;}
+  .btn-pill:hover{color:var(--text); border-color:var(--text-faint);}
 
   section{margin-bottom:52px; scroll-margin-top:90px;}
-  .section-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px;}
-  .section-head h2{font-size:22px; color:var(--text);}
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px;}
+  .section-head h2{font-size:22px;}
   .section-head .note{font-size:12px; color:var(--text-faint);}
 
-  /* KPI cards */
   .kpi-grid{display:grid; grid-template-columns:repeat(var(--kpi-cols),1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
-  .kpi-grid.cols-2{--kpi-cols:2; max-width:520px;}
-  .kpi-grid.cols-4{--kpi-cols:4;}
   .kpi{background:var(--panel); padding:18px 16px; border-left:2px solid transparent;}
-  .kpi.up{border-left-color:var(--teal);}
-  .kpi.down{border-left-color:var(--coral);}
+  .kpi.up{border-left-color:var(--teal);} .kpi.warn{border-left-color:var(--amber);} .kpi.down{border-left-color:var(--coral);}
   .kpi .label{font-size:11.5px; color:var(--text-muted); margin-bottom:10px;}
   .kpi .value{font-family:'Barlow Condensed'; font-size:32px; font-weight:600; line-height:1;}
   .kpi .delta{font-size:12px; margin-top:8px; color:var(--text-faint);}
-  .kpi .delta.pos{color:var(--teal);}
-  .kpi .delta.neg{color:var(--coral);}
 
-  /* Grid panels */
   .grid-2{display:grid; grid-template-columns:1.3fr 1fr; gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
   .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:1px;}
   .panel{background:var(--panel); padding:20px;}
-  .panel h3{font-size:16px; font-weight:500; margin-bottom:14px; color:var(--text);}
+  .panel-boxed{border:1px solid var(--border); border-radius:var(--radius); margin-bottom:1px;}
+  .panel h3{font-size:16px; font-weight:500; margin-bottom:14px;}
   .panel-sub{font-size:11px; color:var(--text-faint); margin-top:-10px; margin-bottom:14px;}
-
-  .chart-box{position:relative; height:230px;}
+  .chart-box{position:relative; height:220px;}
   .chart-box canvas{position:absolute; inset:0;}
 
-  /* Tables */
   table{width:100%; border-collapse:collapse; font-size:13px;}
-  th{text-align:left; font-weight:500; color:var(--text-faint); font-size:11px; text-transform:none; padding:8px 10px; border-bottom:1px solid var(--border-soft);}
+  th{text-align:left; font-weight:500; color:var(--text-faint); font-size:11px; padding:8px 10px; border-bottom:1px solid var(--border-soft);}
   td{padding:9px 10px; border-bottom:1px solid var(--border-soft); color:var(--text);}
-  tr:last-child td{border-bottom:none;}
-  .tag{display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:500;}
+  tbody tr:last-child td{border-bottom:none;}
+  .tag{display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:500; white-space:nowrap;}
   .tag.ok{background:rgba(47,191,135,.12); color:var(--teal);}
   .tag.warn{background:rgba(242,169,0,.12); color:var(--amber);}
   .tag.bad{background:rgba(232,96,76,.12); color:var(--coral);}
+  .tag.neutral{background:var(--panel-alt); color:var(--text-faint);}
 
-  .live-list{display:flex; flex-direction:column; gap:0;}
-  .live-item{display:grid; grid-template-columns:90px 1fr 90px 70px; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--border-soft); font-size:13px;}
+  .live-list{display:flex; flex-direction:column;}
+  .live-item{display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--border-soft); font-size:13px;}
   .live-item:last-child{border-bottom:none;}
   .live-item .route{color:var(--text-muted); font-size:12px;}
-  .live-item .bar-track{height:4px; background:var(--panel-alt); border-radius:2px; overflow:hidden;}
-  .live-item .bar-fill{height:100%; background:var(--amber); border-radius:2px; transition:width 1.2s ease;}
-  .live-item .status{font-size:11px; text-align:right;}
+
+  .pipeline{display:flex; align-items:stretch; gap:0; flex-wrap:wrap;}
+  .pipe-step{flex:1 1 140px; position:relative; padding:14px 18px 14px 0;}
+  .pipe-step:not(:last-child)::after{content:'→'; position:absolute; right:2px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:15px;}
+  .pipe-step .pk{font-size:11px; color:var(--text-muted); margin-bottom:6px;}
+  .pipe-step .pv{font-family:'Barlow Condensed'; font-size:24px; font-weight:600;}
+  .pipe-step .pd{width:8px; height:8px; border-radius:50%; margin-bottom:8px;}
 
   .stat-inline{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border-soft);}
   .stat-inline:last-child{border-bottom:none;}
   .stat-inline .k{color:var(--text-muted); font-size:13px;}
   .stat-inline .v{font-family:'Barlow Condensed'; font-size:18px; font-weight:600;}
 
-  /* Pipeline ponta a ponta */
-  .pipeline{display:flex; align-items:stretch; gap:0;}
-  .pipe-step{flex:1; position:relative; padding:14px 18px 14px 0;}
-  .pipe-step:not(:last-child)::after{content:'→'; position:absolute; right:2px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:15px;}
-  .pipe-step .pk{font-size:11px; color:var(--text-muted); margin-bottom:6px;}
-  .pipe-step .pv{font-family:'Barlow Condensed'; font-size:24px; font-weight:600;}
-  .pipe-step .pd{width:8px; height:8px; border-radius:50%; margin-bottom:8px;}
+  .empty-box{padding:28px 20px; text-align:center; color:var(--text-faint); font-size:13px;}
+  .empty-box a{white-space:nowrap;}
 
-  /* WhatsApp */
-  .wa-list{display:flex; flex-direction:column;}
-  .wa-item{display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--border-soft);}
-  .wa-item:last-child{border-bottom:none;}
-  .wa-avatar{width:32px; height:32px; border-radius:50%; background:var(--panel-alt); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:var(--teal); flex-shrink:0; border:1px solid var(--border);}
-  .wa-body{flex:1; min-width:0;}
-  .wa-name{font-size:13px; color:var(--text);}
-  .wa-msg{font-size:12px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:340px;}
-  .wa-meta{text-align:right; flex-shrink:0;}
-  .wa-time{font-size:11px; color:var(--text-faint);}
-  .wa-badge{display:inline-block; margin-top:4px; width:16px; height:16px; line-height:16px; border-radius:50%; background:var(--amber); color:#14171b; font-size:10px; font-weight:700;}
-
-  footer{padding-top:20px; border-top:1px solid var(--border-soft); font-size:11px; color:var(--text-faint);}
+  footer{padding-top:20px; border-top:1px solid var(--border-soft); font-size:11px; color:var(--text-faint); line-height:1.6;}
 
   @media (max-width:880px){
     .app{grid-template-columns:1fr;}
     .sidebar{position:relative; height:auto;}
     .sidebar-foot{position:relative; width:auto;}
-    .kpi-grid, .kpi-grid.cols-2, .kpi-grid.cols-4{--kpi-cols:2;}
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
     .grid-2, .grid-3{grid-template-columns:1fr;}
-    main{padding:0 16px 40px 16px;}
+    main{padding:0 16px 40px;}
     .topbar{flex-wrap:wrap; gap:12px 16px;}
-    .topbar .status{flex-wrap:wrap; gap:10px 14px;}
-    .live-item{grid-template-columns:auto minmax(0,1fr) auto auto; gap:6px 8px;}
-    .live-item > div{min-width:0;}
-    .live-item .route{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-    .pipeline{flex-wrap:wrap; gap:12px 0;}
-    .pipe-step{flex:1 1 45%; padding-right:0;}
-    .pipe-step:not(:last-child)::after{content:none;}
   }
-
-  /* Kept last so its overrides win the cascade */
   @media (prefers-reduced-motion: reduce){
-    *,*::before,*::after{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important;}
-    .pill .blip{animation:none;}
-    .live-item .bar-fill{transition:none;}
+    *,*::before,*::after{animation-duration:.001ms!important; transition-duration:.001ms!important;}
   }
 </style>
 </head>
@@ -185,19 +131,17 @@
         <li><a href="#kpis" class="nav-link"><span class="dot"></span>Indicadores</a></li>
       </ul>
     </nav>
-    <div class="sidebar-foot">Dados simulados para fins de demonstração. Painel gerado a partir da estrutura de controle da frente.</div>
+    <div class="sidebar-foot">Indicadores calculados a partir dos fretes cadastrados no Supabase. Sem fretes ainda, as seções aparecem vazias.</div>
   </aside>
 
   <main>
     <div class="topbar">
       <h1>Painel Operacional</h1>
       <div class="status">
-        <div class="pill" id="live-pill"><span class="blip"></span><span id="live-label" aria-live="polite">Telemetria ativa</span></div>
-        <span class="live-since" id="live-since">atualizado agora</span>
-        <button type="button" class="live-toggle" id="live-toggle" aria-pressed="false">Pausar</button>
-        <div class="clock" id="clock">--:--:--</div>
+        <span class="updated" id="updated-at">—</span>
+        <button type="button" class="btn-pill" id="refresh-btn">Atualizar</button>
         <span class="mono" style="font-size:12px; color:var(--text-faint);" data-user-email></span>
-        <button type="button" class="live-toggle" data-signout>Sair</button>
+        <button type="button" class="btn-pill" data-signout>Sair</button>
       </div>
     </div>
 
@@ -205,18 +149,28 @@
     <section id="visao-geral">
       <div class="section-head">
         <h2>Visão Geral</h2>
-        <span class="note">Atualizado em tempo real</span>
+        <span class="note">A partir dos fretes cadastrados</span>
       </div>
-      <div class="kpi-grid cols-2">
-        <div class="kpi up">
-          <div class="label">OTD — Entregas no prazo</div>
-          <div class="value num" id="kpi-otd">94.2%</div>
-          <div class="delta pos" id="kpi-otd-delta">↑ 2.2 pp vs meta (92%)</div>
+      <div class="kpi-grid">
+        <div class="kpi" id="kpi-total-box">
+          <div class="label">Total de fretes</div>
+          <div class="value num" id="kpi-total">—</div>
+          <div class="delta">desde o início do cadastro</div>
         </div>
-        <div class="kpi down">
-          <div class="label">Sinistralidade</div>
-          <div class="value num">1.3%</div>
-          <div class="delta neg">3 ocorrências no mês</div>
+        <div class="kpi" id="kpi-andamento-box">
+          <div class="label">Em andamento</div>
+          <div class="value num" id="kpi-andamento">—</div>
+          <div class="delta">em coleta ou em rota</div>
+        </div>
+        <div class="kpi" id="kpi-piso-box">
+          <div class="label">Abaixo do piso ANTT</div>
+          <div class="value num" id="kpi-piso">—</div>
+          <div class="delta" id="kpi-piso-delta">de referência, ver Compliance</div>
+        </div>
+        <div class="kpi up" id="kpi-valor-box">
+          <div class="label">Valor total cobrado</div>
+          <div class="value num" id="kpi-valor">—</div>
+          <div class="delta">soma de todos os fretes</div>
         </div>
       </div>
     </section>
@@ -225,27 +179,22 @@
     <section id="operacional">
       <div class="section-head">
         <h2>Controle Operacional e Logístico</h2>
-        <span class="note">Rastreamento e documentação de viagens</span>
+        <span class="note">Fretes cadastrados, por etapa</span>
       </div>
-      <div class="panel" style="border:1px solid var(--border); border-radius:var(--radius); margin-bottom:1px;">
-        <h3>Visibilidade ponta a ponta</h3>
-        <div class="panel-sub">Coleta → transferência → entrega → comprovante, em um único fluxo</div>
-        <div class="pipeline">
-          <div class="pipe-step"><div class="pd" style="background:var(--teal)"></div><div class="pk">Coleta</div><div class="pv num">52</div></div>
-          <div class="pipe-step"><div class="pd" style="background:var(--blue)"></div><div class="pk">Transferência</div><div class="pv num">31</div></div>
-          <div class="pipe-step"><div class="pd" style="background:var(--amber)"></div><div class="pk">Entrega</div><div class="pv num">44</div></div>
-          <div class="pipe-step"><div class="pd" style="background:var(--text-faint)"></div><div class="pk">Comprovante pendente</div><div class="pv num" style="color:var(--coral)">7</div></div>
-        </div>
+      <div class="panel panel-boxed">
+        <h3>Fretes por etapa</h3>
+        <div class="panel-sub">Confirmado → em coleta → em rota → entregue</div>
+        <div class="pipeline" id="pipeline"></div>
       </div>
       <div class="grid-2">
         <div class="panel">
-          <h3>Viagens em andamento</h3>
-          <div class="panel-sub">Posição via telemetria — atualização automática</div>
+          <h3>Fretes em andamento</h3>
+          <div class="panel-sub">Status "em coleta" ou "em rota"</div>
           <div class="live-list" id="live-trips"></div>
         </div>
         <div class="panel">
-          <h3>Checklist de saída — hoje</h3>
-          <div class="chart-box"><canvas id="chart-checklist" role="img" aria-label="Rosca do checklist de saída de hoje: 34 aprovados, 5 pendentes, 2 reprovados"></canvas></div>
+          <h3>Distribuição por status</h3>
+          <div class="chart-box" id="chart-status-box"><canvas id="chart-status" role="img" aria-label="Distribuição dos fretes por status"></canvas></div>
         </div>
       </div>
     </section>
@@ -254,34 +203,35 @@
     <section id="compliance">
       <div class="section-head">
         <h2>Compliance, Fiscal e ANTT</h2>
-        <span class="note">CT-e, MDF-e, CIOT e piso mínimo de frete</span>
+        <span class="note">Piso mínimo de referência · CT-e/MDF-e/CIOT ainda não integrados</span>
       </div>
       <div class="grid-3">
         <div class="panel">
-          <h3>Documentos fiscais — hoje</h3>
-          <div class="stat-inline"><span class="k">CT-e emitidos</span><span class="v num">128</span></div>
-          <div class="stat-inline"><span class="k">MDF-e emitidos</span><span class="v num">34</span></div>
-          <div class="stat-inline"><span class="k">CIOT registrados</span><span class="v num">41</span></div>
-          <div class="stat-inline"><span class="k">Pendentes de validação</span><span class="v num" style="color:var(--amber)">3</span></div>
+          <h3>Documentos fiscais</h3>
+          <div class="empty-box" style="padding:20px 0; text-align:left;">CT-e, MDF-e e CIOT ainda não são registrados no sistema — próxima fase.</div>
         </div>
         <div class="panel">
-          <h3>Status de validação</h3>
-          <div class="chart-box"><canvas id="chart-fiscal" role="img" aria-label="Rosca do status de validação de documentos fiscais: 186 validados, 14 pendentes, 3 rejeitados"></canvas></div>
+          <h3>Situação vs. piso ANTT</h3>
+          <div class="chart-box" id="chart-piso-box"><canvas id="chart-piso" role="img" aria-label="Fretes por situação em relação ao piso mínimo"></canvas></div>
         </div>
         <div class="panel">
           <h3>Conformidade ANTT</h3>
-          <div class="stat-inline"><span class="k">Fretes verificados no mês</span><span class="v num">312</span></div>
-          <div class="stat-inline"><span class="k">Abaixo do piso mínimo</span><span class="v num" style="color:var(--coral)">4</span></div>
-          <div class="stat-inline"><span class="k">Regularização pendente</span><span class="v num" style="color:var(--amber)">2</span></div>
-          <div class="stat-inline"><span class="k">Conformidade geral</span><span class="v num" style="color:var(--teal)">98,7%</span></div>
+          <div class="stat-inline"><span class="k">Fretes com piso calculado</span><span class="v num" id="antt-verificados">—</span></div>
+          <div class="stat-inline"><span class="k">Abaixo do piso</span><span class="v num" id="antt-abaixo" style="color:var(--coral)">—</span></div>
+          <div class="stat-inline"><span class="k">No limite (±3%)</span><span class="v num" id="antt-limite" style="color:var(--amber)">—</span></div>
+          <div class="stat-inline"><span class="k">Conformidade geral</span><span class="v num" id="antt-conformidade" style="color:var(--teal)">—</span></div>
         </div>
       </div>
-      <div class="panel" style="border:1px solid var(--border); border-radius:var(--radius);">
-        <h3>Piso mínimo de frete — verificação por rota</h3>
-        <table>
-          <thead><tr><th>Rota</th><th>Eixo/Carga</th><th>Valor cobrado</th><th>Piso ANTT</th><th>Status</th></tr></thead>
-          <tbody id="tbl-antt"></tbody>
-        </table>
+      <div class="panel panel-boxed">
+        <h3>Piso mínimo de frete — por rota cadastrada</h3>
+        <div class="panel-sub">Valores de referência — confira em calculadorafrete.antt.gov.br</div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Nº</th><th>Rota</th><th>Eixo/Carga</th><th>Valor cobrado</th><th>Piso ref.</th><th>Situação</th></tr></thead>
+            <tbody id="tbl-antt"></tbody>
+          </table>
+        </div>
+        <div class="empty-box" id="antt-empty" hidden>Nenhum frete cadastrado ainda. <a href="cadastro.html">Cadastrar o primeiro frete →</a></div>
       </div>
     </section>
 
@@ -289,45 +239,13 @@
     <section id="atendimento">
       <div class="section-head">
         <h2>Atendimento via WhatsApp</h2>
-        <span class="pill" style="color:var(--teal);"><span class="blip" style="background:var(--teal);"></span>WhatsApp Business conectado</span>
+        <span class="note">Integração pendente</span>
       </div>
-      <div class="kpi-grid cols-4" style="margin-bottom:1px;">
-        <div class="kpi up">
-          <div class="label">Conversas ativas</div>
-          <div class="value num" id="kpi-wa-ativas">17</div>
-          <div class="delta pos">4 aguardando resposta</div>
-        </div>
-        <div class="kpi up">
-          <div class="label">Tempo médio de 1ª resposta</div>
-          <div class="value num">2m 14s</div>
-          <div class="delta pos">↓ dentro da meta (5min)</div>
-        </div>
-        <div class="kpi up">
-          <div class="label">Taxa de resolução</div>
-          <div class="value num">93%</div>
-          <div class="delta pos">sem escalonamento humano</div>
-        </div>
-        <div class="kpi down">
-          <div class="label">Atendimentos hoje</div>
-          <div class="value num">86</div>
-          <div class="delta neg">↑ 12% vs média diária</div>
-        </div>
-      </div>
-      <div class="grid-2">
-        <div class="panel">
-          <h3>Conversas recentes</h3>
-          <div class="panel-sub">Motoristas, clientes e transportadoras parceiras</div>
-          <div class="wa-list" id="wa-list"></div>
-        </div>
-        <div class="panel">
-          <h3>Volume de mensagens — últimos 7 dias</h3>
-          <div class="chart-box"><canvas id="chart-whatsapp" role="img" aria-label="Barras do volume de mensagens recebidas nos últimos 7 dias (quinta a quarta): 210, 244, 98, 62, 268, 251, 231"></canvas></div>
-          <div style="margin-top:14px;">
-            <div class="stat-inline"><span class="k">Consulta de status de entrega</span><span class="v num">41%</span></div>
-            <div class="stat-inline"><span class="k">Envio de canhoto/comprovante</span><span class="v num">27%</span></div>
-            <div class="stat-inline"><span class="k">Ocorrência ou avaria</span><span class="v num">18%</span></div>
-            <div class="stat-inline"><span class="k">Outros</span><span class="v num">14%</span></div>
-          </div>
+      <div class="panel panel-boxed">
+        <div class="empty-box">
+          Ainda não há integração com a API do WhatsApp (Meta Cloud API) — fase 3 do projeto.
+          Hoje, cada frete cadastrado tem um botão <strong>“Falar no WhatsApp”</strong> na
+          tela de <a href="cadastro.html">Cadastro de Frete</a>, usando o telefone de contato informado.
         </div>
       </div>
     </section>
@@ -336,49 +254,36 @@
     <section id="kpis">
       <div class="section-head">
         <h2>Indicadores de Desempenho</h2>
-        <span class="note">Tendências operacionais</span>
+        <span class="note">Volume e valores ao longo do tempo</span>
       </div>
-      <div class="panel" style="border:1px solid var(--border); border-radius:var(--radius); margin-bottom:1px;">
-        <h3>OTD — últimas 12 semanas</h3>
-        <div class="chart-box"><canvas id="chart-otd" role="img" aria-label="Linha do OTD nas últimas 12 semanas, entre 90,8% e 95,4%, com linha de meta em 92%"></canvas></div>
+      <div class="panel panel-boxed">
+        <h3>Fretes cadastrados — últimas 8 semanas</h3>
+        <div class="chart-box" id="chart-semanas-box"><canvas id="chart-semanas" role="img" aria-label="Fretes cadastrados por semana"></canvas></div>
       </div>
-      <div class="panel" style="border:1px solid var(--border); border-radius:var(--radius);">
-        <h3>Índice de ocorrências por tipo</h3>
-        <div class="chart-box"><canvas id="chart-ocorrencias" role="img" aria-label="Barras de ocorrências por tipo: 9 avarias, 3 extravios, 3 sinistros, 11 multas"></canvas></div>
+      <div class="panel panel-boxed">
+        <h3>Valor cobrado x piso de referência</h3>
+        <div class="stat-inline"><span class="k">Valor total cobrado</span><span class="v num" id="ind-cobrado">—</span></div>
+        <div class="stat-inline"><span class="k">Piso total de referência</span><span class="v num" id="ind-piso">—</span></div>
+        <div class="stat-inline"><span class="k">Diferença</span><span class="v num" id="ind-diff">—</span></div>
       </div>
     </section>
 
-    <footer>Painel de demonstração — estrutura baseada no documento de controle de frente. Todos os valores são simulados.</footer>
+    <footer>
+      Indicadores calculados a partir dos fretes cadastrados no Supabase. OTD e sinistralidade não
+      aparecem ainda porque o sistema não coleta esses dados — entram quando houver histórico de
+      entregas e ocorrências. Piso ANTT é uma estimativa de referência
+      (<a href="https://calculadorafrete.antt.gov.br" target="_blank" rel="noopener">calculadora oficial</a>).
+    </footer>
   </main>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase.js"></script>
+<script src="app.js"></script>
 <script>
-/* ---------- Exige login (redireciona para login.html se não houver sessão) ---------- */
 if (!CONFIGURADO) { throw new Error('Supabase não configurado — ver SETUP-SUPABASE.md'); }
-guardPage();
 
-/* ---------- Motion preference (used by charts + live loop) ---------- */
-const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-/* ---------- Chart.js defaults ---------- */
-Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
-Chart.defaults.color = '#8b929b';
-Chart.defaults.borderColor = '#2b3138';
-Chart.defaults.responsive = true;
-Chart.defaults.maintainAspectRatio = false;
-if(reduceMotion.matches) Chart.defaults.animation = false;
-const AMBER='#f2a900', TEAL='#2fbf87', CORAL='#e8604c', BLUE='#5b8ab8', GREY='#3a4149';
-
-/* ---------- Clock ---------- */
-function tickClock(){
-  if(document.hidden) return;
-  document.getElementById('clock').textContent = new Date().toLocaleTimeString('pt-BR');
-}
-tickClock(); setInterval(tickClock, 1000);
-
-/* ---------- Scroll spy ---------- */
+/* ---------- Scroll spy da navegação ---------- */
 const links = document.querySelectorAll('.nav-link');
 const sections = document.querySelectorAll('main section');
 const spy = new IntersectionObserver((entries)=>{
@@ -390,197 +295,200 @@ const spy = new IntersectionObserver((entries)=>{
     }
   });
 }, {rootMargin:'-40% 0px -50% 0px'});
-sections.forEach(s=>spy.observe(s));
+sections.forEach(s => spy.observe(s));
 
-/* ---------- Checklist donut ---------- */
-new Chart(document.getElementById('chart-checklist'), {
-  type:'doughnut',
-  data:{labels:['Aprovado','Pendente','Reprovado'], datasets:[{data:[34,5,2], backgroundColor:[TEAL,AMBER,CORAL], borderColor:'#1b1f24', borderWidth:2}]},
-  options:{plugins:{legend:{position:'bottom', labels:{boxWidth:8, padding:14, font:{size:11}}}}, cutout:'65%'}
-});
+/* ---------- Chart.js defaults ---------- */
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+Chart.defaults.color = '#8b929b';
+Chart.defaults.borderColor = '#2b3138';
+Chart.defaults.responsive = true;
+Chart.defaults.maintainAspectRatio = false;
+if (reduceMotion.matches) Chart.defaults.animation = false;
+const TEAL='#2fbf87', AMBER='#f2a900', CORAL='#e8604c', BLUE='#5b8ab8', GREY='#3a4149';
 
-/* ---------- Fiscal validation status ---------- */
-new Chart(document.getElementById('chart-fiscal'), {
-  type:'doughnut',
-  data:{labels:['Validado','Pendente','Rejeitado'], datasets:[{data:[186,14,3], backgroundColor:[TEAL,AMBER,CORAL], borderColor:'#1b1f24', borderWidth:2}]},
-  options:{plugins:{legend:{position:'bottom', labels:{boxWidth:8, padding:14, font:{size:11}}}}, cutout:'65%'}
-});
+let charts = {};
+function destroyCharts(){ Object.values(charts).forEach(c=>c && c.destroy()); charts = {}; }
 
-/* ---------- ANTT piso mínimo table ---------- */
-const anttData = [
-  {rota:'Curitiba → São Paulo', eixo:'6 eixos', cobrado:'R$ 4.820', piso:'R$ 4.650', status:'ok'},
-  {rota:'Curitiba → Florianópolis', eixo:'5 eixos', cobrado:'R$ 3.100', piso:'R$ 3.280', status:'bad'},
-  {rota:'Araucária → Londrina', eixo:'4 eixos', cobrado:'R$ 2.480', piso:'R$ 2.410', status:'ok'},
-  {rota:'Curitiba → Joinville', eixo:'6 eixos', cobrado:'R$ 2.690', piso:'R$ 2.750', status:'warn'},
-  {rota:'Ponta Grossa → Curitiba', eixo:'3 eixos', cobrado:'R$ 1.340', piso:'R$ 1.290', status:'ok'},
+const $ = id => document.getElementById(id);
+
+function renderEmpty(el, msg){ el.innerHTML = `<div class="empty-box">${msg}</div>`; }
+
+/* ---------- Pipeline por etapa ---------- */
+const PIPELINE_STEPS = [
+  {status:'confirmado', label:'Confirmado', color:TEAL},
+  {status:'coleta',     label:'Em coleta',  color:BLUE},
+  {status:'rota',       label:'Em rota',    color:AMBER},
+  {status:'entregue',   label:'Entregue',   color:'#5c636b'}
 ];
-document.getElementById('tbl-antt').innerHTML = anttData.map(a=>`
-  <tr><td>${a.rota}</td><td>${a.eixo}</td><td class="num">${a.cobrado}</td><td class="num">${a.piso}</td>
-  <td><span class="tag ${a.status}">${a.status==='ok'?'Conforme':a.status==='warn'?'No limite':'Abaixo do piso'}</span></td></tr>`).join('');
-
-/* ---------- WhatsApp volume chart ---------- */
-new Chart(document.getElementById('chart-whatsapp'), {
-  type:'bar',
-  data:{labels:['Qui','Sex','Sáb','Dom','Seg','Ter','Qua'], datasets:[
-    {label:'Mensagens recebidas', data:[210,244,98,62,268,251,231], backgroundColor:TEAL, borderRadius:2}
-  ]},
-  options:{scales:{x:{grid:{display:false}}, y:{grid:{color:'#242a30'}}}, plugins:{legend:{display:false}}}
-});
-
-/* ---------- WhatsApp conversation list ---------- */
-const waConvos = [
-  {nome:'Adilson Rocha', iniciais:'AR', msg:'Cheguei no cliente, vou descarregar agora', tempo:'agora', unread:1},
-  {nome:'Cliente — Metalúrgica Vitória', iniciais:'MV', msg:'Qual o status da carga CT-e 88213?', tempo:'2 min', unread:2},
-  {nome:'Elaine Souza', iniciais:'ES', msg:'Enviando o canhoto assinado', tempo:'6 min', unread:0},
-  {nome:'Transportadora Parceira', iniciais:'TP', msg:'Confirmando coleta para amanhã 08h', tempo:'14 min', unread:0},
-  {nome:'Marcos Vinícius', iniciais:'MVi', msg:'Tive um imprevisto, parada técnica na BR-277', tempo:'21 min', unread:1},
-];
-document.getElementById('wa-list').innerHTML = waConvos.map(w=>`
-  <div class="wa-item">
-    <div class="wa-avatar">${w.iniciais}</div>
-    <div class="wa-body">
-      <div class="wa-name">${w.nome}</div>
-      <div class="wa-msg">${w.msg}</div>
-    </div>
-    <div class="wa-meta">
-      <div class="wa-time">${w.tempo}</div>
-      ${w.unread ? `<div class="wa-badge">${w.unread}</div>` : ''}
-    </div>
-  </div>`).join('');
-
-/* ---------- OTD trend ---------- */
-const weeks = Array.from({length:12},(_,i)=>'S'+(i+1));
-const otdData = [91.2,92.5,90.8,93.1,94.0,92.7,95.1,93.8,94.6,93.2,95.4,94.2];
-new Chart(document.getElementById('chart-otd'), {
-  type:'line',
-  data:{labels:weeks, datasets:[
-    {label:'OTD %', data:otdData, borderColor:AMBER, backgroundColor:'rgba(242,169,0,0.08)', fill:true, tension:.35, pointRadius:2, pointBackgroundColor:AMBER},
-    {label:'Meta 92%', data:weeks.map(()=>92), borderColor:GREY, borderDash:[4,3], pointRadius:0, borderWidth:1.5}
-  ]},
-  options:{scales:{y:{min:85, max:100, grid:{color:'#242a30'}}, x:{grid:{display:false}}}, plugins:{legend:{position:'bottom', labels:{boxWidth:8, font:{size:11}}}}}
-});
-
-/* ---------- Ocorrências ---------- */
-new Chart(document.getElementById('chart-ocorrencias'), {
-  type:'bar',
-  data:{labels:['Avarias','Extravios','Sinistros','Multas'], datasets:[
-    {data:[9,3,3,11], backgroundColor:[BLUE,AMBER,CORAL,GREY], borderRadius:2}
-  ]},
-  options:{scales:{x:{grid:{display:false}}, y:{grid:{color:'#242a30'}}}, plugins:{legend:{display:false}}}
-});
-
-/* ---------- Live trips simulation ---------- */
-const trips = [
-  {id:'VC-014', route:'Curitiba → Joinville', progress:62, status:'Em rota'},
-  {id:'VC-022', route:'São Paulo → Curitiba', progress:28, status:'Em rota'},
-  {id:'VC-008', route:'Curitiba → Florianópolis', progress:88, status:'Chegando'},
-  {id:'VC-031', route:'Araucária → Ponta Grossa', progress:12, status:'Em rota'},
-  {id:'VC-019', route:'Curitiba → Londrina', progress:45, status:'Parada técnica'},
-];
-function renderTrips(){
-  document.getElementById('live-trips').innerHTML = trips.map(t=>`
-    <div class="live-item">
-      <div class="mono">${t.id}</div>
-      <div>
-        <div class="route">${t.route}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${t.progress}%"></div></div>
-      </div>
-      <div class="status" style="color:${t.status==='Parada técnica'?'var(--amber)':'var(--text-muted)'}">${t.status}</div>
-      <div class="num" style="text-align:right;">${t.progress}%</div>
+function renderPipeline(fretes){
+  const counts = {};
+  fretes.forEach(f => counts[f.status] = (counts[f.status]||0) + 1);
+  $('pipeline').innerHTML = PIPELINE_STEPS.map(s => `
+    <div class="pipe-step">
+      <div class="pd" style="background:${s.color}"></div>
+      <div class="pk">${s.label}</div>
+      <div class="pv num">${counts[s.status] || 0}</div>
     </div>`).join('');
 }
-renderTrips();
-const tripsInitial = JSON.parse(JSON.stringify(trips));
-const KPI_OTD_INITIAL = '94.2%', KPI_OTD_DELTA_INITIAL = '↑ 2.2 pp vs meta (92%)';
 
-/* ---------- Live update loop — pausable, tab-aware, reduced-motion aware ---------- */
-const livePill   = document.getElementById('live-pill');
-const liveLabel  = document.getElementById('live-label');
-const liveSince  = document.getElementById('live-since');
-const liveToggle = document.getElementById('live-toggle');
+/* ---------- Fretes em andamento ---------- */
+function renderLiveTrips(fretes){
+  const em = fretes.filter(f => f.status === 'coleta' || f.status === 'rota');
+  const box = $('live-trips');
+  if(!em.length){ renderEmpty(box, 'Nenhum frete em coleta ou em rota agora.'); return; }
+  box.innerHTML = em.map(f => `
+    <div class="live-item">
+      <div>
+        <div class="mono">${esc(f.numero)}</div>
+        <div class="route">${esc(f.origem)} → ${esc(f.destino)}</div>
+      </div>
+      <span class="tag ${f.status==='rota' ? 'warn' : 'neutral'}">${esc(STATUS_LABEL[f.status] || f.status)}</span>
+      <div class="num" style="text-align:right;">${isFinite(f.valorFrete) ? brl.format(f.valorFrete) : '—'}</div>
+    </div>`).join('');
+}
 
-let lastTick = Date.now();
-let paused = false;
-let running = false;
-
-function setLiveLabel(text){ if(liveLabel.textContent !== text) liveLabel.textContent = text; }
-function canRun(){ return !paused && !reduceMotion.matches && !document.hidden; }
-
-function stepTrips(){
-  trips.forEach(t=>{
-    if(t.status!=='Parada técnica' && t.progress<100){
-      t.progress = Math.min(100, t.progress + Math.floor(Math.random()*4)+1);
-      if(t.progress>=95) t.status='Chegando';
-    }
-    if(t.progress>=100){ t.progress=8; t.status='Em rota'; }
+/* ---------- Donut de status ---------- */
+function renderStatusChart(fretes){
+  const box = $('chart-status-box');
+  if(!fretes.length){ renderEmpty(box, 'Sem fretes cadastrados ainda.'); return; }
+  const counts = STATUS_ORDER.map(s => fretes.filter(f=>f.status===s).length);
+  const canvas = document.createElement('canvas');
+  canvas.id = 'chart-status'; canvas.role = 'img';
+  canvas.setAttribute('aria-label', 'Distribuição dos fretes por status: ' + STATUS_ORDER.map((s,i)=>STATUS_LABEL[s]+' '+counts[i]).join(', '));
+  box.innerHTML = ''; box.appendChild(canvas);
+  charts.status = new Chart(canvas, {
+    type:'doughnut',
+    data:{ labels: STATUS_ORDER.map(s=>STATUS_LABEL[s]), datasets:[{ data:counts, backgroundColor:[GREY,TEAL,BLUE,AMBER,'#5c636b','#3a6b8a'], borderColor:'#1b1f24', borderWidth:2 }] },
+    options:{ plugins:{ legend:{ position:'bottom', labels:{ boxWidth:8, padding:12, font:{size:11} } } }, cutout:'65%' }
   });
-  renderTrips();
-  lastTick = Date.now();
 }
-function flutterKpi(){
-  const base = 94.2 + (Math.random()*0.6 - 0.3);
-  document.getElementById('kpi-otd').textContent = base.toFixed(1)+'%';
-  document.getElementById('kpi-otd-delta').textContent = '↑ '+(base - 92).toFixed(1)+' pp vs meta (92%)';
-  lastTick = Date.now();
-}
-let tripTimer = null, kpiTimer = null;
-function startLive(){
-  if(running || !canRun()) return;
-  running = true;
-  tripTimer = setInterval(stepTrips, 3500);
-  kpiTimer  = setInterval(flutterKpi, 5000);
-}
-function stopLive(){
-  running = false;
-  clearInterval(tripTimer); clearInterval(kpiTimer);
-  tripTimer = kpiTimer = null;
-}
-function renderSnapshot(){
-  stopLive();
-  trips.length = 0; tripsInitial.forEach(t=> trips.push({...t}));
-  renderTrips();
-  document.getElementById('kpi-otd').textContent = KPI_OTD_INITIAL;
-  document.getElementById('kpi-otd-delta').textContent = KPI_OTD_DELTA_INITIAL;
-}
-function setPaused(p){
-  paused = p;
-  liveToggle.textContent = p ? 'Retomar' : 'Pausar';
-  liveToggle.setAttribute('aria-pressed', String(p));
-  if(p){ stopLive(); } else { lastTick = Date.now(); startLive(); }
-}
-liveToggle.addEventListener('click', ()=> setPaused(!paused));
 
-/* freshness indicator + stale state */
-setInterval(()=>{
-  if(reduceMotion.matches || document.hidden) return;
-  if(paused){ liveSince.textContent = 'pausado'; livePill.classList.add('stale'); setLiveLabel('Telemetria pausada'); return; }
-  const secs = Math.round((Date.now() - lastTick)/1000);
-  liveSince.textContent = secs < 5 ? 'atualizado agora' : 'atualizado há ' + secs + 's';
-  const stale = secs > 15;
-  livePill.classList.toggle('stale', stale);
-  setLiveLabel(stale ? 'Telemetria sem dados recentes' : 'Telemetria ativa');
-}, 1000);
+/* ---------- Donut de situação (piso) ---------- */
+function renderPisoChart(fretes){
+  const box = $('chart-piso-box');
+  const comPiso = fretes.filter(f => f.pisoRef != null);
+  if(!comPiso.length){ renderEmpty(box, 'Sem fretes com piso calculado ainda.'); return; }
+  let ok=0, limite=0, abaixo=0;
+  comPiso.forEach(f=>{ const s = situacao(f.valorFrete, f.pisoRef); if(s.cls==='ok') ok++; else if(s.cls==='warn') limite++; else if(s.cls==='bad') abaixo++; });
+  const canvas = document.createElement('canvas');
+  canvas.role = 'img';
+  canvas.setAttribute('aria-label', `Situação em relação ao piso: ${ok} conforme, ${limite} no limite, ${abaixo} abaixo do piso`);
+  box.innerHTML = ''; box.appendChild(canvas);
+  charts.piso = new Chart(canvas, {
+    type:'doughnut',
+    data:{ labels:['Conforme','No limite','Abaixo do piso'], datasets:[{ data:[ok,limite,abaixo], backgroundColor:[TEAL,AMBER,CORAL], borderColor:'#1b1f24', borderWidth:2 }] },
+    options:{ plugins:{ legend:{ position:'bottom', labels:{ boxWidth:8, padding:12, font:{size:11} } } }, cutout:'65%' }
+  });
+}
 
-/* stop offscreen work when the tab is hidden */
-document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden){ stopLive(); }
-  else if(canRun()){ lastTick = Date.now(); startLive(); }
-});
+/* ---------- Conformidade ANTT (stats) ---------- */
+function renderConformidade(fretes){
+  const comPiso = fretes.filter(f => f.pisoRef != null);
+  const abaixo = comPiso.filter(f => situacao(f.valorFrete, f.pisoRef).cls === 'bad').length;
+  const limite = comPiso.filter(f => situacao(f.valorFrete, f.pisoRef).cls === 'warn').length;
+  const conforme = comPiso.length - abaixo - limite;
+  $('antt-verificados').textContent = num.format(comPiso.length);
+  $('antt-abaixo').textContent = num.format(abaixo);
+  $('antt-limite').textContent = num.format(limite);
+  $('antt-conformidade').textContent = comPiso.length ? (Math.round((conforme/comPiso.length)*1000)/10) + '%' : '—';
+}
 
-/* reduced motion → render a static snapshot, no loop */
-function applyMotionPref(){
-  if(reduceMotion.matches){
-    renderSnapshot();
-    setLiveLabel('Telemetria — instantâneo');
-    liveSince.textContent = 'atualização automática desativada';
-    liveToggle.hidden = true;
-  } else {
-    liveToggle.hidden = false;
-    if(canRun()) startLive();
+/* ---------- Tabela ANTT ---------- */
+function renderAnttTable(fretes){
+  $('antt-empty').hidden = fretes.length > 0;
+  $('tbl-antt').innerHTML = fretes.map(f=>{
+    const s = situacao(f.valorFrete, f.pisoRef);
+    return `<tr>
+      <td class="mono">${esc(f.numero)}</td>
+      <td>${esc(f.origem)} → ${esc(f.destino)}</td>
+      <td>${esc(TIPO_LABEL[f.tipoCarga] || f.tipoCarga || '—')}${f.eixos ? ' · ' + f.eixos + ' eixos' : ''}</td>
+      <td class="num">${isFinite(f.valorFrete) ? brl.format(f.valorFrete) : '—'}</td>
+      <td class="num">${f.pisoRef != null ? brl.format(f.pisoRef) : '—'}</td>
+      <td><span class="tag ${s.cls}">${s.txt}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ---------- Fretes por semana ---------- */
+function renderSemanasChart(fretes){
+  const box = $('chart-semanas-box');
+  if(!fretes.length){ renderEmpty(box, 'Sem fretes cadastrados ainda.'); return; }
+  const weeks = [];
+  const now = new Date();
+  for(let i=7;i>=0;i--){
+    const start = new Date(now); start.setDate(now.getDate() - (i*7 + now.getDay()));
+    start.setHours(0,0,0,0);
+    weeks.push(start);
   }
+  const counts = weeks.map((start,i)=>{
+    const end = new Date(start); end.setDate(start.getDate()+7);
+    return fretes.filter(f => { const d = new Date(f.criadoEm); return d >= start && d < end; }).length;
+  });
+  const labels = weeks.map(w => w.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}));
+  const canvas = document.createElement('canvas');
+  canvas.role = 'img';
+  canvas.setAttribute('aria-label', 'Fretes cadastrados por semana: ' + counts.join(', '));
+  box.innerHTML = ''; box.appendChild(canvas);
+  charts.semanas = new Chart(canvas, {
+    type:'bar',
+    data:{ labels, datasets:[{ label:'Fretes', data:counts, backgroundColor:AMBER, borderRadius:2 }] },
+    options:{ scales:{ x:{ grid:{display:false} }, y:{ grid:{color:'#242a30'}, ticks:{precision:0} } }, plugins:{ legend:{ display:false } } }
+  });
 }
-reduceMotion.addEventListener('change', applyMotionPref);
-applyMotionPref();
+
+/* ---------- KPIs de topo ---------- */
+function renderKpis(fretes){
+  const total = fretes.length;
+  const andamento = fretes.filter(f=>f.status==='coleta'||f.status==='rota').length;
+  const comPiso = fretes.filter(f=>f.pisoRef!=null);
+  const abaixo = comPiso.filter(f=>situacao(f.valorFrete,f.pisoRef).cls==='bad').length;
+  const valorTotal = fretes.reduce((s,f)=> s + (isFinite(f.valorFrete)?f.valorFrete:0), 0);
+
+  $('kpi-total').textContent = num.format(total);
+  $('kpi-andamento').textContent = num.format(andamento);
+  $('kpi-piso').textContent = num.format(abaixo);
+  $('kpi-piso-delta').textContent = comPiso.length ? `de ${num.format(comPiso.length)} com piso calculado` : 'sem piso calculado ainda';
+  $('kpi-valor').textContent = brl.format(valorTotal);
+  $('kpi-piso-box').className = 'kpi' + (abaixo>0 ? ' down' : total ? ' up' : '');
+
+  $('ind-cobrado').textContent = brl.format(valorTotal);
+  const pisoTotal = comPiso.reduce((s,f)=> s + f.pisoRef, 0);
+  $('ind-piso').textContent = comPiso.length ? brl.format(pisoTotal) : '—';
+  const diff = valorTotal - pisoTotal;
+  const diffEl = $('ind-diff');
+  diffEl.textContent = comPiso.length ? (diff>=0?'+':'') + brl.format(diff) : '—';
+  diffEl.style.color = comPiso.length ? (diff>=0 ? 'var(--teal)' : 'var(--coral)') : '';
+}
+
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------- Carregar e desenhar tudo ---------- */
+async function loadAndRender(){
+  destroyCharts();
+  let fretes = [];
+  try { fretes = await store.list(); }
+  catch (err){ console.warn('Falha ao carregar fretes:', err.message); }
+
+  renderKpis(fretes);
+  renderPipeline(fretes);
+  renderLiveTrips(fretes);
+  renderStatusChart(fretes);
+  renderPisoChart(fretes);
+  renderConformidade(fretes);
+  renderAnttTable(fretes);
+  renderSemanasChart(fretes);
+
+  $('updated-at').textContent = 'atualizado às ' + new Date().toLocaleTimeString('pt-BR');
+}
+
+$('refresh-btn').addEventListener('click', loadAndRender);
+
+/* ---------- Init ---------- */
+(async function init(){
+  await guardPage();   // exige login
+  await loadAndRender();
+})().catch(err => console.warn('init:', err.message));
 </script>
 </body>
 </html>
