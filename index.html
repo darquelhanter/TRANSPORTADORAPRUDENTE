@@ -13,7 +13,7 @@
   :root{
     --bg:#14171b; --panel:#1b1f24; --panel-alt:#20252b; --border:#2b3138; --border-soft:#242a30;
     --text:#e9e7e2; --text-muted:#8b929b; --text-faint:#949aa4;
-    --amber:#f2a900; --teal:#2fbf87; --coral:#e8604c; --blue:#5b8ab8; --radius:3px; --kpi-cols:4;
+    --amber:#f2a900; --teal:#2fbf87; --coral:#e8604c; --blue:#5b8ab8; --radius:3px; --kpi-cols:5;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
@@ -163,7 +163,7 @@
           <div class="delta">em coleta ou em rota</div>
         </div>
         <div class="kpi" id="kpi-piso-box">
-          <div class="label">Abaixo do piso ANTT</div>
+          <div class="label">Motorista abaixo do piso ANTT</div>
           <div class="value num" id="kpi-piso">—</div>
           <div class="delta" id="kpi-piso-delta">de referência, ver Compliance</div>
         </div>
@@ -171,6 +171,11 @@
           <div class="label">Valor total cobrado</div>
           <div class="value num" id="kpi-valor">—</div>
           <div class="delta">soma de todos os fretes</div>
+        </div>
+        <div class="kpi" id="kpi-margem-box">
+          <div class="label">Margem da corretagem</div>
+          <div class="value num" id="kpi-margem">—</div>
+          <div class="delta" id="kpi-margem-delta">cobrado − pago ao motorista</div>
         </div>
       </div>
     </section>
@@ -227,7 +232,7 @@
         <div class="panel-sub">Valores de referência — confira em calculadorafrete.antt.gov.br</div>
         <div style="overflow-x:auto;">
           <table>
-            <thead><tr><th>Nº</th><th>Rota</th><th>Eixo/Carga</th><th>Valor cobrado</th><th>Piso ref.</th><th>Situação</th></tr></thead>
+            <thead><tr><th>Nº</th><th>Rota</th><th>Eixo/Carga</th><th>Pago ao motorista</th><th>Piso ref.</th><th>Situação</th></tr></thead>
             <tbody id="tbl-antt"></tbody>
           </table>
         </div>
@@ -261,10 +266,12 @@
         <div class="chart-box" id="chart-semanas-box"><canvas id="chart-semanas" role="img" aria-label="Fretes cadastrados por semana"></canvas></div>
       </div>
       <div class="panel panel-boxed">
-        <h3>Valor cobrado x piso de referência</h3>
-        <div class="stat-inline"><span class="k">Valor total cobrado</span><span class="v num" id="ind-cobrado">—</span></div>
-        <div class="stat-inline"><span class="k">Piso total de referência</span><span class="v num" id="ind-piso">—</span></div>
-        <div class="stat-inline"><span class="k">Diferença</span><span class="v num" id="ind-diff">—</span></div>
+        <h3>Financeiro consolidado</h3>
+        <div class="stat-inline"><span class="k">Valor total cobrado do cliente</span><span class="v num" id="ind-cobrado">—</span></div>
+        <div class="stat-inline"><span class="k">Valor total pago aos motoristas</span><span class="v num" id="ind-pago">—</span></div>
+        <div class="stat-inline"><span class="k">Margem total da corretagem</span><span class="v num" id="ind-margem">—</span></div>
+        <div class="stat-inline"><span class="k">Piso total de referência (motoristas)</span><span class="v num" id="ind-piso">—</span></div>
+        <div class="stat-inline"><span class="k">Diferença (pago − piso)</span><span class="v num" id="ind-diff">—</span></div>
       </div>
     </section>
 
@@ -370,7 +377,7 @@ function renderPisoChart(fretes){
   const comPiso = fretes.filter(f => f.pisoRef != null);
   if(!comPiso.length){ renderEmpty(box, 'Sem fretes com piso calculado ainda.'); return; }
   let ok=0, limite=0, abaixo=0;
-  comPiso.forEach(f=>{ const s = situacao(f.valorFrete, f.pisoRef); if(s.cls==='ok') ok++; else if(s.cls==='warn') limite++; else if(s.cls==='bad') abaixo++; });
+  comPiso.forEach(f=>{ const s = situacao(f.valorMotorista, f.pisoRef); if(s.cls==='ok') ok++; else if(s.cls==='warn') limite++; else if(s.cls==='bad') abaixo++; });
   const canvas = document.createElement('canvas');
   canvas.role = 'img';
   canvas.setAttribute('aria-label', `Situação em relação ao piso: ${ok} conforme, ${limite} no limite, ${abaixo} abaixo do piso`);
@@ -385,8 +392,8 @@ function renderPisoChart(fretes){
 /* ---------- Conformidade ANTT (stats) ---------- */
 function renderConformidade(fretes){
   const comPiso = fretes.filter(f => f.pisoRef != null);
-  const abaixo = comPiso.filter(f => situacao(f.valorFrete, f.pisoRef).cls === 'bad').length;
-  const limite = comPiso.filter(f => situacao(f.valorFrete, f.pisoRef).cls === 'warn').length;
+  const abaixo = comPiso.filter(f => situacao(f.valorMotorista, f.pisoRef).cls === 'bad').length;
+  const limite = comPiso.filter(f => situacao(f.valorMotorista, f.pisoRef).cls === 'warn').length;
   const conforme = comPiso.length - abaixo - limite;
   $('antt-verificados').textContent = num.format(comPiso.length);
   $('antt-abaixo').textContent = num.format(abaixo);
@@ -398,12 +405,12 @@ function renderConformidade(fretes){
 function renderAnttTable(fretes){
   $('antt-empty').hidden = fretes.length > 0;
   $('tbl-antt').innerHTML = fretes.map(f=>{
-    const s = situacao(f.valorFrete, f.pisoRef);
+    const s = situacao(f.valorMotorista, f.pisoRef);
     return `<tr>
       <td class="mono">${esc(f.numero)}</td>
       <td>${esc(f.origem)} → ${esc(f.destino)}</td>
       <td>${esc(TIPO_LABEL[f.tipoCarga] || f.tipoCarga || '—')}${f.eixos ? ' · ' + f.eixos + ' eixos' : ''}</td>
-      <td class="num">${isFinite(f.valorFrete) ? brl.format(f.valorFrete) : '—'}</td>
+      <td class="num">${isFinite(f.valorMotorista) ? brl.format(f.valorMotorista) : '—'}</td>
       <td class="num">${f.pisoRef != null ? brl.format(f.pisoRef) : '—'}</td>
       <td><span class="tag ${s.cls}">${s.txt}</span></td>
     </tr>`;
@@ -442,8 +449,10 @@ function renderKpis(fretes){
   const total = fretes.length;
   const andamento = fretes.filter(f=>f.status==='coleta'||f.status==='rota').length;
   const comPiso = fretes.filter(f=>f.pisoRef!=null);
-  const abaixo = comPiso.filter(f=>situacao(f.valorFrete,f.pisoRef).cls==='bad').length;
+  const abaixo = comPiso.filter(f=>situacao(f.valorMotorista,f.pisoRef).cls==='bad').length;
   const valorTotal = fretes.reduce((s,f)=> s + (isFinite(f.valorFrete)?f.valorFrete:0), 0);
+  const pagoTotal = fretes.reduce((s,f)=> s + (isFinite(f.valorMotorista)?f.valorMotorista:0), 0);
+  const margemTotal = valorTotal - pagoTotal;
 
   $('kpi-total').textContent = num.format(total);
   $('kpi-andamento').textContent = num.format(andamento);
@@ -451,11 +460,17 @@ function renderKpis(fretes){
   $('kpi-piso-delta').textContent = comPiso.length ? `de ${num.format(comPiso.length)} com piso calculado` : 'sem piso calculado ainda';
   $('kpi-valor').textContent = brl.format(valorTotal);
   $('kpi-piso-box').className = 'kpi' + (abaixo>0 ? ' down' : total ? ' up' : '');
+  $('kpi-margem').textContent = brl.format(margemTotal);
+  $('kpi-margem-box').className = 'kpi' + (total ? (margemTotal >= 0 ? ' up' : ' down') : '');
+  $('kpi-margem-delta').textContent = valorTotal > 0 ? Math.round((margemTotal/valorTotal)*1000)/10 + '% do valor cobrado' : 'cobrado − pago ao motorista';
 
   $('ind-cobrado').textContent = brl.format(valorTotal);
+  $('ind-pago').textContent = brl.format(pagoTotal);
+  $('ind-margem').textContent = brl.format(margemTotal);
   const pisoTotal = comPiso.reduce((s,f)=> s + f.pisoRef, 0);
   $('ind-piso').textContent = comPiso.length ? brl.format(pisoTotal) : '—';
-  const diff = valorTotal - pisoTotal;
+  const pagoComPiso = comPiso.reduce((s,f)=> s + (isFinite(f.valorMotorista)?f.valorMotorista:0), 0);
+  const diff = pagoComPiso - pisoTotal;
   const diffEl = $('ind-diff');
   diffEl.textContent = comPiso.length ? (diff>=0?'+':'') + brl.format(diff) : '—';
   diffEl.style.color = comPiso.length ? (diff>=0 ? 'var(--teal)' : 'var(--coral)') : '';

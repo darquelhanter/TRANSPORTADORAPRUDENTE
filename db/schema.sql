@@ -33,7 +33,11 @@ create table if not exists public.fretes (
   contato_tel       text,
 
   -- financeiro / motorista
+  -- valor_frete = cobrado do cliente; valor_motorista = pago a quem executa o
+  -- transporte. A empresa é corretora de frete: a margem é a diferença entre
+  -- os dois, e o piso mínimo ANTT compara com valor_motorista (não valor_frete).
   valor_frete       numeric,
+  valor_motorista   numeric,
   status            text not null default 'confirmado',
   motorista         text,
   motorista_cpf     text,
@@ -72,3 +76,12 @@ create policy "fretes_update" on public.fretes
 
 create policy "fretes_delete" on public.fretes
   for delete to authenticated using (true);
+
+-- =====================================================================
+-- Migrações incrementais — rode só a que ainda não rodou no seu projeto.
+-- (create table acima já cria valor_motorista para instalações novas)
+-- =====================================================================
+
+-- 2026-09-04: separa valor cobrado do cliente e valor pago ao motorista
+-- (a empresa é corretora de frete: a margem é a diferença entre os dois)
+alter table public.fretes add column if not exists valor_motorista numeric;

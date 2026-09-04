@@ -58,12 +58,24 @@ function calcPiso({tipoCarga, eixos, distancia, incluirRetorno}){
   const retorno = incluirRetorno ? 0.92 * dist * row.ccd : 0;
   return { ccd: row.ccd, cc: row.cc, dist, retorno, total: desloc + retorno + row.cc };
 }
-function situacao(cobrado, piso){
-  if(piso == null || !isFinite(cobrado)) return {cls:'neutral', txt:'—'};
-  const r = cobrado / piso;
+/* Situação em relação ao piso mínimo — compara com o valor PAGO AO MOTORISTA,
+   não com o valor cobrado do cliente. É quem executa o transporte que o piso
+   protege (empresa é corretora de frete: cobra do cliente, paga o motorista,
+   fica com a diferença). */
+function situacao(pagoMotorista, piso){
+  if(piso == null || !isFinite(pagoMotorista)) return {cls:'neutral', txt:'—'};
+  const r = pagoMotorista / piso;
   if(r >= 1.0)  return {cls:'ok',   txt:'Conforme'};
   if(r >= 0.97) return {cls:'warn', txt:'No limite'};
   return {cls:'bad', txt:'Abaixo do piso'};
+}
+
+/* Margem da corretagem: o que fica para a empresa em cada frete. */
+function margem(f){
+  if(!isFinite(f.valorFrete) || !isFinite(f.valorMotorista)) return null;
+  const valor = f.valorFrete - f.valorMotorista;
+  const pct = f.valorFrete > 0 ? (valor / f.valorFrete) * 100 : null;
+  return { valor, pct };
 }
 
 /* =====================================================================
@@ -77,7 +89,7 @@ function toRow(f){
     remetente:f.remetente, remetente_doc:f.remetenteDoc || null,
     destinatario:f.destinatario, destinatario_doc:f.destinatarioDoc || null,
     tomador:f.tomador || null, contato_tel:f.contatoTel || null,
-    valor_frete:f.valorFrete, status:f.status || 'confirmado',
+    valor_frete:f.valorFrete, valor_motorista:f.valorMotorista, status:f.status || 'confirmado',
     motorista:f.motorista || null, motorista_cpf:f.motoristaCpf || null,
     placa_cavalo:f.placaCavalo || null, placa_reboque:f.placaReboque || null,
     obs:f.obs || null, inclui_retorno:!!f.incluiRetorno, piso_ref:f.pisoRef ?? null
@@ -89,7 +101,7 @@ function fromRow(r){
     origem:r.origem, destino:r.destino, distancia:r.distancia, previsao:r.previsao,
     tipoCarga:r.tipo_carga, eixos:r.eixos, veiculo:r.veiculo, peso:r.peso, valorMercadoria:r.valor_mercadoria,
     remetente:r.remetente, remetenteDoc:r.remetente_doc, destinatario:r.destinatario, destinatarioDoc:r.destinatario_doc,
-    tomador:r.tomador, contatoTel:r.contato_tel, valorFrete:r.valor_frete, status:r.status,
+    tomador:r.tomador, contatoTel:r.contato_tel, valorFrete:r.valor_frete, valorMotorista:r.valor_motorista, status:r.status,
     motorista:r.motorista, motoristaCpf:r.motorista_cpf, placaCavalo:r.placa_cavalo, placaReboque:r.placa_reboque,
     obs:r.obs, incluiRetorno:r.inclui_retorno, pisoRef:r.piso_ref
   };

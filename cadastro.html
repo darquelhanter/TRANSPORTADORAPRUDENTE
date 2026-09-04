@@ -320,9 +320,15 @@
           <legend>Financeiro e motorista</legend>
           <div class="fields">
             <div class="field">
-              <label for="valorFrete">Valor do frete cobrado (R$) <span class="req" aria-hidden="true">*</span></label>
+              <label for="valorFrete">Valor do frete cobrado do cliente (R$) <span class="req" aria-hidden="true">*</span></label>
               <input id="valorFrete" name="valorFrete" class="mono-in" inputmode="decimal" required placeholder="4820,00" aria-describedby="valorFrete-err">
               <p class="err" id="valorFrete-err">Informe o valor do frete.</p>
+            </div>
+            <div class="field">
+              <label for="valorMotorista">Valor pago ao motorista (R$) <span class="req" aria-hidden="true">*</span></label>
+              <input id="valorMotorista" name="valorMotorista" class="mono-in" inputmode="decimal" required placeholder="4200,00" aria-describedby="valorMotorista-hint valorMotorista-err">
+              <p class="hint" id="valorMotorista-hint">É este valor que precisa respeitar o piso ANTT, não o cobrado do cliente.</p>
+              <p class="err" id="valorMotorista-err">Informe o valor pago ao motorista.</p>
             </div>
             <div class="field">
               <label for="status">Status</label>
@@ -369,10 +375,10 @@
         </div>
       </form>
 
-      <aside class="rail" aria-label="Cálculo de referência do piso mínimo ANTT">
+      <aside class="rail" aria-label="Cálculo de referência do piso mínimo ANTT e margem">
         <div class="box">
           <h3>Piso mínimo — referência ANTT</h3>
-          <p class="sub">Atualiza conforme você preenche eixos, tipo de carga e distância.</p>
+          <p class="sub">Compara com o valor pago ao motorista — é ele quem o piso protege.</p>
           <div class="line"><span class="k">CCD (R$/km)</span><span class="v" id="calc-ccd">—</span></div>
           <div class="line"><span class="k">CC (carga/descarga)</span><span class="v" id="calc-cc">—</span></div>
           <div class="line"><span class="k">Distância</span><span class="v" id="calc-dist">—</span></div>
@@ -384,7 +390,18 @@
             <div class="amount num" id="calc-piso">—</div>
           </div>
 
-          <div class="verdict none" id="calc-verdict">Preencha o valor do frete e os dados da rota para comparar.</div>
+          <div class="verdict none" id="calc-verdict">Preencha o valor pago ao motorista e os dados da rota para comparar.</div>
+        </div>
+        <div class="box">
+          <h3>Margem da corretagem</h3>
+          <p class="sub">Frete cobrado do cliente menos o que é pago ao motorista.</p>
+          <div class="line"><span class="k">Cobrado do cliente</span><span class="v" id="calc-cobrado">—</span></div>
+          <div class="line"><span class="k">Pago ao motorista</span><span class="v" id="calc-pago">—</span></div>
+          <div class="piso">
+            <div class="line" style="border:0; padding-bottom:0;"><span class="k">Margem</span></div>
+            <div class="amount num" id="calc-margem">—</div>
+            <div class="amount small num" id="calc-margem-pct"></div>
+          </div>
         </div>
         <div class="box">
           <p class="official">
@@ -406,7 +423,7 @@
         <thead>
           <tr>
             <th>Nº</th><th>Rota</th><th>Carga / eixos</th>
-            <th>Valor cobrado</th><th>Piso ref.</th><th>Situação</th><th>Status</th><th>Ações</th>
+            <th>Cobrado</th><th>Motorista</th><th>Margem</th><th>Piso ref.</th><th>Situação</th><th>Status</th><th>Ações</th>
           </tr>
         </thead>
         <tbody id="frete-tbody"></tbody>
@@ -443,34 +460,50 @@ function updateRail(){
   };
   const p = calcPiso(data);
   const cobrado = parseMoney($('valorFrete').value);
+  const pago = parseMoney($('valorMotorista').value);
+
   if(!p){
     $('calc-ccd').textContent = $('calc-cc').textContent = $('calc-dist').textContent = $('calc-retorno').textContent = '—';
     $('calc-piso').textContent = '—';
     const v = $('calc-verdict'); v.className = 'verdict none';
     v.textContent = 'Preencha tipo de carga, eixos e distância para calcular.';
-    return;
-  }
-  $('calc-ccd').textContent = brl.format(p.ccd);
-  $('calc-cc').textContent = brl.format(p.cc);
-  $('calc-dist').textContent = num.format(p.dist) + ' km';
-  $('calc-retorno').textContent = p.retorno ? brl.format(p.retorno) : '—';
-  $('calc-piso').textContent = brl.format(p.total);
-  const s = situacao(cobrado, p.total);
-  const v = $('calc-verdict');
-  if(!isFinite(cobrado)){
-    v.className = 'verdict none';
-    v.textContent = 'Informe o valor do frete cobrado para comparar com o piso.';
   } else {
-    v.className = 'verdict ' + s.cls;
-    const diff = cobrado - p.total;
-    v.textContent = s.txt + ' — cobrado ' + brl.format(cobrado) + ' ('
-      + (diff >= 0 ? '+' : '') + brl.format(diff) + ' vs piso).';
+    $('calc-ccd').textContent = brl.format(p.ccd);
+    $('calc-cc').textContent = brl.format(p.cc);
+    $('calc-dist').textContent = num.format(p.dist) + ' km';
+    $('calc-retorno').textContent = p.retorno ? brl.format(p.retorno) : '—';
+    $('calc-piso').textContent = brl.format(p.total);
+    const s = situacao(pago, p.total);
+    const v = $('calc-verdict');
+    if(!isFinite(pago)){
+      v.className = 'verdict none';
+      v.textContent = 'Informe o valor pago ao motorista para comparar com o piso.';
+    } else {
+      v.className = 'verdict ' + s.cls;
+      const diff = pago - p.total;
+      v.textContent = s.txt + ' — motorista recebe ' + brl.format(pago) + ' ('
+        + (diff >= 0 ? '+' : '') + brl.format(diff) + ' vs piso).';
+    }
+  }
+
+  $('calc-cobrado').textContent = isFinite(cobrado) ? brl.format(cobrado) : '—';
+  $('calc-pago').textContent = isFinite(pago) ? brl.format(pago) : '—';
+  const margemEl = $('calc-margem'), pctEl = $('calc-margem-pct');
+  if(isFinite(cobrado) && isFinite(pago)){
+    const valor = cobrado - pago;
+    const pct = cobrado > 0 ? (valor / cobrado) * 100 : null;
+    margemEl.textContent = brl.format(valor);
+    margemEl.style.color = valor >= 0 ? 'var(--teal)' : 'var(--coral)';
+    pctEl.textContent = pct != null ? (pct>=0?'+':'') + pct.toFixed(1) + '% do frete cobrado' : '';
+  } else {
+    margemEl.textContent = '—'; margemEl.style.color = '';
+    pctEl.textContent = '';
   }
 }
 
 /* ---------- Validação do formulário ---------- */
 const form = $('frete-form');
-const REQUIRED = ['origem','destino','distancia','tipoCarga','eixos','remetente','destinatario','valorFrete'];
+const REQUIRED = ['origem','destino','distancia','tipoCarga','eixos','remetente','destinatario','valorFrete','valorMotorista'];
 function fieldWrap(el){ return el.closest('.field'); }
 function setError(el, msg){
   const w = fieldWrap(el); if(!w) return;
@@ -489,6 +522,7 @@ function validateField(el){
   if(REQUIRED.includes(id) && !val){ setError(el, el.tagName === 'SELECT' ? 'Selecione uma opção.' : 'Campo obrigatório.'); return false; }
   if(id === 'distancia' && val){ const n = parseFloat(val.replace(',','.')); if(!isFinite(n) || n <= 0){ setError(el, 'Informe um número de km maior que zero.'); return false; } }
   if(id === 'valorFrete' && val){ if(!isFinite(parseMoney(val))){ setError(el, 'Valor inválido.'); return false; } }
+  if(id === 'valorMotorista' && val){ if(!isFinite(parseMoney(val))){ setError(el, 'Valor inválido.'); return false; } }
   if(id === 'remetenteDoc' && val && !cnpjValido(val)){ setError(el, 'CNPJ inválido.'); return false; }
   if(id === 'destinatarioDoc' && val && !(cpfValido(val) || cnpjValido(val))){ setError(el, 'CPF ou CNPJ inválido.'); return false; }
   if(id === 'motoristaCpf' && val && !cpfValido(val)){ setError(el, 'CPF inválido.'); return false; }
@@ -502,7 +536,7 @@ form.querySelectorAll('input, select, textarea').forEach(el=>{
     if(el.id === 'remetenteDoc' && el.value.trim()) el.value = fmtCnpj(el.value);
     if((el.id === 'destinatarioDoc' || el.id === 'motoristaCpf') && el.value.trim()) el.value = fmtDoc(el.value);
   });
-  if(['tipoCarga','eixos','distancia','valorFrete','incluir-retorno'].includes(el.id)){
+  if(['tipoCarga','eixos','distancia','valorFrete','valorMotorista','incluir-retorno'].includes(el.id)){
     el.addEventListener('input', updateRail);
     el.addEventListener('change', updateRail);
   }
@@ -537,6 +571,7 @@ form.addEventListener('submit', async (e)=>{
     ...raw,
     distancia: parseFloat(String(raw.distancia).replace(',','.')),
     valorFrete: parseMoney(raw.valorFrete),
+    valorMotorista: parseMoney(raw.valorMotorista),
     valorMercadoria: raw.valorMercadoria ? parseMoney(raw.valorMercadoria) : null,
     peso: raw.peso ? parseInt(onlyDigits(raw.peso), 10) : null,
     contatoTel: onlyDigits(raw.contatoTel),
@@ -583,13 +618,16 @@ async function render(){
   $('list-count').textContent = fretes.length ? fretes.length + (fretes.length === 1 ? ' registro' : ' registros') : '';
   $('empty-state').hidden = fretes.length > 0;
   tbody.innerHTML = fretes.map(f=>{
-    const s = situacao(f.valorFrete, f.pisoRef);
+    const s = situacao(f.valorMotorista, f.pisoRef);
+    const m = margem(f);
     const wa = waLink(f);
     return `<tr>
       <td class="mono">${esc(f.numero)}</td>
       <td>${esc(f.origem)} <span class="rota">→ ${esc(f.destino)}</span><br><span class="rota">${num.format(f.distancia||0)} km</span></td>
       <td>${esc(TIPO_LABEL[f.tipoCarga] || f.tipoCarga || '—')}<br><span class="rota">${esc(f.eixos || '—')} eixos</span></td>
       <td class="mono">${isFinite(f.valorFrete) ? brl.format(f.valorFrete) : '—'}</td>
+      <td class="mono">${isFinite(f.valorMotorista) ? brl.format(f.valorMotorista) : '—'}</td>
+      <td class="mono" style="color:${m && m.valor < 0 ? 'var(--coral)' : 'var(--teal)'}">${m ? brl.format(m.valor) : '—'}</td>
       <td class="mono">${f.pisoRef != null ? brl.format(f.pisoRef) : '—'}</td>
       <td><span class="tag ${s.cls}">${s.txt}</span></td>
       <td><span class="tag neutral">${esc(STATUS_LABEL[f.status] || f.status || '—')}</span></td>
