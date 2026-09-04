@@ -124,6 +124,65 @@ const store = {
 };
 
 /* =====================================================================
+   Central de Atendimento — fase 1: registro manual das conversas.
+   (fase 2: o webhook do WhatsApp passa a inserir aqui automaticamente)
+   ===================================================================== */
+function fmtTelefone(digits){
+  const d = onlyDigits(digits);
+  const local = d.length > 11 ? d.slice(-11) : d; // tira o 55 do DDI pra exibir
+  if (local.length === 11) return `(${local.slice(0,2)}) ${local.slice(2,7)}-${local.slice(7)}`;
+  if (local.length === 10) return `(${local.slice(0,2)}) ${local.slice(2,6)}-${local.slice(6)}`;
+  return digits;
+}
+function waLinkFromTelefone(telefone, texto){
+  const tel = onlyDigits(telefone);
+  if (!tel) return null;
+  const full = tel.length <= 11 ? '55' + tel : tel;
+  return `https://wa.me/${full}` + (texto ? `?text=${encodeURIComponent(texto)}` : '');
+}
+
+const conversasStore = {
+  async list(){
+    const { data, error } = await sb.from('conversas').select('*').order('ultima_mensagem_em', { ascending:false });
+    if (error) throw error;
+    return data;
+  },
+  async create({ telefone, nomeContato, freteNumero }){
+    const row = { telefone: onlyDigits(telefone), nome_contato: nomeContato || null, frete_numero: freteNumero || null };
+    const { data, error } = await sb.from('conversas').insert(row).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async setStatus(id, status){
+    const { error } = await sb.from('conversas').update({ status }).eq('id', id);
+    if (error) throw error;
+  },
+  async remove(id){
+    const { error } = await sb.from('conversas').delete().eq('id', id);
+    if (error) throw error;
+  }
+};
+
+const mensagensStore = {
+  async listByConversa(conversaId){
+    const { data, error } = await sb.from('mensagens').select('*').eq('conversa_id', conversaId).order('criado_em', { ascending:true });
+    if (error) throw error;
+    return data;
+  },
+  async countAll(){
+    const { count, error } = await sb.from('mensagens').select('*', { count:'exact', head:true });
+    if (error) throw error;
+    return count || 0;
+  },
+  async create(conversaId, direcao, texto){
+    const { error: e1 } = await sb.from('mensagens').insert({ conversa_id: conversaId, direcao, texto, origem: 'manual' });
+    if (e1) throw e1;
+    const { error: e2 } = await sb.from('conversas').update({ ultima_mensagem_em: new Date().toISOString() }).eq('id', conversaId);
+    if (e2) throw e2;
+  }
+};
+
+/* =====================================================================
    Estados e cidades (IBGE) + distância estimada (Nominatim/OpenStreetMap)
    ---------------------------------------------------------------------
    - Lista de UFs: fixa (não muda).

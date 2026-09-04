@@ -133,3 +133,50 @@ create policy "app_config_select" on public.app_config for select to authenticat
 create policy "app_config_upsert" on public.app_config for insert to authenticated with check (true);
 create policy "app_config_update" on public.app_config for update to authenticated using (true) with check (true);
 create policy "app_config_delete" on public.app_config for delete to authenticated using (true);
+
+-- =====================================================================
+-- Central de Atendimento — fase 1: registro manual das conversas.
+-- Quando a API da Meta (WhatsApp) for conectada (fase 2), o webhook
+-- passa a inserir aqui automaticamente em vez do atendente digitar.
+-- =====================================================================
+create table if not exists public.conversas (
+  id                  uuid primary key default gen_random_uuid(),
+  criado_em           timestamptz not null default now(),
+  telefone            text not null,             -- só dígitos, com DDI: 5541999990000
+  nome_contato        text,
+  frete_numero        text,                       -- vínculo opcional com um frete (ex.: FR-1001)
+  status              text not null default 'aberta', -- aberta | resolvida
+  ultima_mensagem_em  timestamptz not null default now()
+);
+
+create table if not exists public.mensagens (
+  id           uuid primary key default gen_random_uuid(),
+  conversa_id  uuid not null references public.conversas(id) on delete cascade,
+  criado_em    timestamptz not null default now(),
+  direcao      text not null,             -- 'recebida' | 'enviada'
+  origem       text not null default 'manual', -- 'manual' (fase 1) | 'whatsapp' | 'ia' (fase 2+)
+  texto        text not null,
+  autor        uuid default auth.uid()
+);
+
+create index if not exists conversas_ultima_msg_idx on public.conversas (ultima_mensagem_em desc);
+create index if not exists mensagens_conversa_idx on public.mensagens (conversa_id, criado_em);
+
+alter table public.conversas enable row level security;
+alter table public.mensagens enable row level security;
+
+drop policy if exists "conversas_select" on public.conversas;
+drop policy if exists "conversas_insert" on public.conversas;
+drop policy if exists "conversas_update" on public.conversas;
+drop policy if exists "conversas_delete" on public.conversas;
+create policy "conversas_select" on public.conversas for select to authenticated using (true);
+create policy "conversas_insert" on public.conversas for insert to authenticated with check (true);
+create policy "conversas_update" on public.conversas for update to authenticated using (true) with check (true);
+create policy "conversas_delete" on public.conversas for delete to authenticated using (true);
+
+drop policy if exists "mensagens_select" on public.mensagens;
+drop policy if exists "mensagens_insert" on public.mensagens;
+drop policy if exists "mensagens_delete" on public.mensagens;
+create policy "mensagens_select" on public.mensagens for select to authenticated using (true);
+create policy "mensagens_insert" on public.mensagens for insert to authenticated with check (true);
+create policy "mensagens_delete" on public.mensagens for delete to authenticated using (true);

@@ -173,7 +173,7 @@
       <ul>
         <li><a href="index.html"><span class="dot"></span>Painel Operacional</a></li>
         <li><a href="cadastro.html" class="active" aria-current="page"><span class="dot"></span>Cadastro de Frete</a></li>
-        <li><a href="index.html#atendimento"><span class="dot"></span>Atendimento (WhatsApp)</a></li>
+        <li><a href="atendimento.html"><span class="dot"></span>Atendimento (WhatsApp)</a></li>
         <li><a href="index.html#kpis"><span class="dot"></span>Indicadores</a></li>
       </ul>
     </nav>
@@ -731,11 +731,8 @@ $('reset-btn').addEventListener('click', ()=>{
 
 /* ---------- WhatsApp (wa.me) ---------- */
 function waLink(frete){
-  const tel = onlyDigits(frete.contatoTel);
-  if(!tel) return null;
-  const full = tel.length <= 11 ? '55' + tel : tel;
   const msg = `Olá! Sobre o frete ${frete.numero} (${frete.origem} → ${frete.destino}). `;
-  return `https://wa.me/${full}?text=${encodeURIComponent(msg)}`;
+  return waLinkFromTelefone(frete.contatoTel, msg);
 }
 
 /* ---------- Render da tabela ---------- */

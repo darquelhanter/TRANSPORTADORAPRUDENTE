@@ -127,7 +127,7 @@
         <li><a href="#operacional" class="nav-link"><span class="dot"></span>Operacional</a></li>
         <li><a href="cadastro.html"><span class="dot"></span>Cadastro de Frete</a></li>
         <li><a href="#compliance" class="nav-link"><span class="dot"></span>Compliance &amp; ANTT</a></li>
-        <li><a href="#atendimento" class="nav-link"><span class="dot"></span>Atendimento (WhatsApp)</a></li>
+        <li><a href="atendimento.html"><span class="dot"></span>Atendimento (WhatsApp)</a></li>
         <li><a href="#kpis" class="nav-link"><span class="dot"></span>Indicadores</a></li>
       </ul>
     </nav>
@@ -244,13 +244,30 @@
     <section id="atendimento">
       <div class="section-head">
         <h2>Atendimento via WhatsApp</h2>
-        <span class="note">Integração pendente</span>
+        <span class="note">Registro manual — API da Meta ainda não conectada</span>
       </div>
-      <div class="panel panel-boxed">
-        <div class="empty-box">
-          Ainda não há integração com a API do WhatsApp (Meta Cloud API) — fase 3 do projeto.
-          Hoje, cada frete cadastrado tem um botão <strong>“Falar no WhatsApp”</strong> na
-          tela de <a href="cadastro.html">Cadastro de Frete</a>, usando o telefone de contato informado.
+      <div class="kpi-grid" style="--kpi-cols:3;">
+        <div class="kpi">
+          <div class="label">Conversas abertas</div>
+          <div class="value num" id="kpi-conv-abertas">—</div>
+          <div class="delta">aguardando resposta ou acompanhamento</div>
+        </div>
+        <div class="kpi">
+          <div class="label">Conversas registradas</div>
+          <div class="value num" id="kpi-conv-total">—</div>
+          <div class="delta">desde o início do registro</div>
+        </div>
+        <div class="kpi">
+          <div class="label">Mensagens registradas</div>
+          <div class="value num" id="kpi-msg-total">—</div>
+          <div class="delta">recebidas + enviadas, manualmente</div>
+        </div>
+      </div>
+      <div class="panel panel-boxed" style="margin-top:1px;">
+        <div class="empty-box" style="text-align:left; padding:16px 0;">
+          Fase 1: as conversas são registradas à mão em <a href="atendimento.html">Central de Atendimento →</a>
+          A integração automática com a API do WhatsApp (Meta Cloud API) é a próxima fase — quando estiver pronta,
+          as mensagens passam a cair aqui sozinhas.
         </div>
       </div>
     </section>
@@ -478,6 +495,19 @@ function renderKpis(fretes){
 
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+/* ---------- Atendimento (resumo) ---------- */
+async function renderAtendimentoResumo(){
+  try {
+    const conversas = await conversasStore.list();
+    const abertas = conversas.filter(c => c.status === 'aberta').length;
+    $('kpi-conv-abertas').textContent = num.format(abertas);
+    $('kpi-conv-total').textContent = num.format(conversas.length);
+    $('kpi-msg-total').textContent = num.format(await mensagensStore.countAll());
+  } catch (err) {
+    console.warn('Falha ao carregar resumo de atendimento:', err.message);
+  }
+}
+
 /* ---------- Carregar e desenhar tudo ---------- */
 async function loadAndRender(){
   destroyCharts();
@@ -493,6 +523,7 @@ async function loadAndRender(){
   renderConformidade(fretes);
   renderAnttTable(fretes);
   renderSemanasChart(fretes);
+  renderAtendimentoResumo();
 
   $('updated-at').textContent = 'atualizado às ' + new Date().toLocaleTimeString('pt-BR');
 }

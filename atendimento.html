@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Central de Atendimento — registro de conversas com clientes e motoristas. Fase 1: registro manual; a integração com a API do WhatsApp é a fase seguinte.">
+<title>Central de Atendimento — Torre de Controle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14171b; --panel:#1b1f24; --panel-alt:#20252b; --border:#2b3138; --border-soft:#242a30;
+    --text:#e9e7e2; --text-muted:#8b929b; --text-faint:#949aa4;
+    --amber:#f2a900; --teal:#2fbf87; --coral:#e8604c; --blue:#5b8ab8; --radius:3px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; height:100%;}
+  h1,h2,h3{font-family:'Barlow Condensed',sans-serif; font-weight:600; letter-spacing:.01em;}
+  .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  a{color:var(--amber);}
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible{outline:2px solid var(--amber); outline-offset:2px; border-radius:2px;}
+  :focus:not(:focus-visible){outline:none;}
+
+  .app{display:grid; grid-template-columns:210px 1fr; min-height:100vh;}
+  .sidebar{background:var(--panel); border-right:1px solid var(--border); padding:22px 0; position:sticky; top:0; height:100vh;}
+  .brand{padding:0 20px 22px; border-bottom:1px solid var(--border-soft); margin-bottom:14px;}
+  .brand .mark{width:30px; height:30px; background:var(--amber); border-radius:2px; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed'; font-weight:700; color:#14171b; font-size:16px; margin-bottom:10px;}
+  .brand .name{font-family:'Barlow Condensed'; font-size:19px; font-weight:600; line-height:1.1;}
+  .brand .sub{font-size:11px; color:var(--text-muted); margin-top:2px;}
+  nav ul{list-style:none;}
+  nav a{display:flex; align-items:center; gap:10px; padding:12px 20px; color:var(--text-muted); text-decoration:none; font-size:14px; border-left:2px solid transparent; transition:color .15s, border-color .15s, background .15s;}
+  nav a:hover{color:var(--text); background:var(--panel-alt);}
+  nav a.active{color:var(--amber); border-left-color:var(--amber); background:var(--panel-alt); font-weight:500;}
+  nav .dot{width:5px; height:5px; border-radius:50%; background:currentColor; opacity:.6; flex-shrink:0;}
+  .sidebar-foot{position:absolute; bottom:0; width:210px; padding:16px 20px; border-top:1px solid var(--border-soft); font-size:11px; color:var(--text-faint); line-height:1.5;}
+
+  main{display:flex; flex-direction:column; min-width:0; height:100vh;}
+  .topbar{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:20px 28px; border-bottom:1px solid var(--border-soft); background:var(--bg);}
+  .topbar h1{font-size:24px;}
+  .topbar .status{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+  .btn-pill{font:inherit; font-size:12px; color:var(--text-muted); background:var(--panel-alt); border:1px solid var(--border); padding:5px 12px; border-radius:20px; cursor:pointer; transition:color .15s, border-color .15s;}
+  .btn-pill:hover{color:var(--text); border-color:var(--text-faint);}
+  .banner{margin:0 28px; margin-top:16px; padding:10px 14px; background:rgba(242,169,0,.08); border:1px solid rgba(242,169,0,.3); border-radius:var(--radius); font-size:12px; color:var(--amber); line-height:1.5;}
+
+  .inbox{flex:1; display:grid; grid-template-columns:340px 1fr; min-height:0; margin:16px 28px 28px; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; background:var(--border);}
+
+  /* Lista de conversas */
+  .conv-pane{background:var(--panel); display:flex; flex-direction:column; min-height:0;}
+  .conv-pane-head{padding:16px; border-bottom:1px solid var(--border-soft); display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .conv-pane-head h2{font-size:16px; font-weight:600;}
+  .btn-primary{font:inherit; font-size:12px; font-weight:600; cursor:pointer; background:var(--amber); color:#14171b; border:0; border-radius:2px; padding:7px 12px;}
+  .btn-primary:hover{background:#ffbb1a;}
+  .btn-ghost{font:inherit; font-size:12px; cursor:pointer; background:transparent; color:var(--text-muted); border:1px solid var(--border); border-radius:2px; padding:7px 12px;}
+  .btn-ghost:hover{color:var(--text); border-color:var(--text-faint);}
+  .conv-list{overflow-y:auto; flex:1;}
+  .conv-item{display:block; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid var(--border-soft); padding:12px 16px; cursor:pointer; color:inherit; font:inherit;}
+  .conv-item:hover{background:var(--panel-alt);}
+  .conv-item.active{background:var(--panel-alt); box-shadow:inset 2px 0 0 var(--amber);}
+  .conv-item .row1{display:flex; justify-content:space-between; gap:8px; margin-bottom:4px;}
+  .conv-item .nome{font-size:13px; font-weight:500;}
+  .conv-item .quando{font-size:11px; color:var(--text-faint); white-space:nowrap;}
+  .conv-item .tel{font-size:12px; color:var(--text-muted); font-family:'IBM Plex Mono',monospace;}
+  .conv-item .frete-tag{display:inline-block; margin-top:6px; font-size:10px; padding:1px 7px; border-radius:20px; background:var(--panel); border:1px solid var(--border); color:var(--text-faint);}
+  .tag{display:inline-block; padding:2px 8px; border-radius:20px; font-size:10.5px; font-weight:500;}
+  .tag.aberta{background:rgba(47,191,135,.12); color:var(--teal);}
+  .tag.resolvida{background:var(--panel-alt); color:var(--text-faint);}
+
+  /* Thread */
+  .thread-pane{background:var(--panel); display:flex; flex-direction:column; min-height:0;}
+  .thread-head{padding:16px; border-bottom:1px solid var(--border-soft); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+  .thread-head h3{font-size:15px;}
+  .thread-head .sub{font-size:12px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace;}
+  .thread-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .thread-msgs{flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px;}
+  .msg{max-width:70%; padding:9px 12px; border-radius:8px; font-size:13px; line-height:1.45;}
+  .msg .meta{display:block; font-size:10.5px; color:var(--text-faint); margin-top:4px;}
+  .msg.recebida{align-self:flex-start; background:var(--panel-alt); border:1px solid var(--border);}
+  .msg.enviada{align-self:flex-end; background:rgba(242,169,0,.12); border:1px solid rgba(242,169,0,.3);}
+  .thread-form{border-top:1px solid var(--border-soft); padding:14px 16px; display:flex; flex-direction:column; gap:10px;}
+  .direcao-toggle{display:flex; gap:6px;}
+  .direcao-toggle button{font:inherit; font-size:12px; padding:6px 12px; border-radius:20px; border:1px solid var(--border); background:var(--panel-alt); color:var(--text-muted); cursor:pointer;}
+  .direcao-toggle button.selected{background:var(--amber); color:#14171b; border-color:var(--amber); font-weight:600;}
+  .thread-form textarea{font:inherit; font-size:13px; color:var(--text); background:var(--panel-alt); border:1px solid var(--border); border-radius:2px; padding:9px 11px; min-height:56px; resize:vertical;}
+  .thread-form-actions{display:flex; justify-content:space-between; align-items:center;}
+
+  .empty-box{padding:40px 20px; text-align:center; color:var(--text-faint); font-size:13px; margin:auto;}
+
+  .modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:20; padding:20px;}
+  .modal{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:22px; width:100%; max-width:380px;}
+  .modal h3{font-size:17px; margin-bottom:14px;}
+  .modal .field{display:flex; flex-direction:column; gap:5px; margin-bottom:12px;}
+  .modal label{font-size:12px; color:var(--text-muted);}
+  .modal input{font:inherit; font-size:13px; color:var(--text); background:var(--panel-alt); border:1px solid var(--border); border-radius:2px; padding:8px 10px;}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end; margin-top:16px;}
+
+  .toast{position:fixed; right:20px; bottom:20px; background:var(--panel); border:1px solid var(--teal); color:var(--teal); font-size:13px; padding:12px 16px; border-radius:var(--radius); box-shadow:0 8px 24px rgba(0,0,0,.4); opacity:0; transform:translateY(8px); transition:opacity .2s, transform .2s; pointer-events:none; z-index:30;}
+  .toast.show{opacity:1; transform:translateY(0);}
+
+  @media (max-width:880px){
+    .app{grid-template-columns:1fr;}
+    .sidebar{position:relative; height:auto;}
+    .sidebar-foot{position:relative; width:auto;}
+    main{height:auto;}
+    .topbar{padding:16px;}
+    .banner{margin:16px;}
+    .inbox{margin:12px; grid-template-columns:1fr; height:70vh;}
+    .conv-pane{display:var(--conv-display, flex);}
+    .thread-pane{display:var(--thread-display, none);}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:.001ms!important; transition-duration:.001ms!important;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">TC</div>
+      <div class="name">Torre de<br>Controle</div>
+      <div class="sub">Frente Operacional — Filial Sul</div>
+    </div>
+    <nav>
+      <ul>
+        <li><a href="index.html"><span class="dot"></span>Painel Operacional</a></li>
+        <li><a href="cadastro.html"><span class="dot"></span>Cadastro de Frete</a></li>
+        <li><a href="atendimento.html" class="active" aria-current="page"><span class="dot"></span>Atendimento (WhatsApp)</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-foot">Fase 1: registro manual. A conexão automática com a API do WhatsApp é a próxima fase.</div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <h1>Central de Atendimento</h1>
+      <div class="status">
+        <span class="mono" style="font-size:12px; color:var(--text-faint);" data-user-email></span>
+        <button type="button" class="btn-pill" data-signout>Sair</button>
+      </div>
+    </div>
+    <div class="banner">
+      Registro manual — ainda não há integração automática com a API do WhatsApp (Meta Cloud API).
+      Fale com o cliente pelo WhatsApp normalmente e registre aqui o que foi dito, para manter o histórico.
+    </div>
+
+    <div class="inbox">
+      <section class="conv-pane" aria-label="Lista de conversas">
+        <div class="conv-pane-head">
+          <h2>Conversas</h2>
+          <button type="button" class="btn-primary" id="nova-conversa-btn">Nova conversa</button>
+        </div>
+        <div class="conv-list" id="conv-list"></div>
+      </section>
+
+      <section class="thread-pane" aria-label="Conversa selecionada" id="thread-pane">
+        <div class="empty-box" id="thread-empty">Selecione uma conversa à esquerda, ou crie uma nova.</div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
+<script src="app.js"></script>
+<script>
+if (!CONFIGURADO) { throw new Error('Supabase não configurado — ver SETUP-SUPABASE.md'); }
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let toastTimer;
+function showToast(msg, isError){
+  const t = $('toast');
+  t.textContent = msg;
+  t.style.borderColor = isError ? 'var(--coral)' : 'var(--teal)';
+  t.style.color = isError ? 'var(--coral)' : 'var(--teal)';
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 3500);
+}
+
+let conversas = [];
+let conversaAtualId = null;
+let direcaoSelecionada = 'recebida';
+
+function quandoTexto(iso){
+  const d = new Date(iso);
+  const hoje = new Date();
+  const mesmodia = d.toDateString() === hoje.toDateString();
+  return mesmodia ? d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})
+                  : d.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
+}
+
+async function carregarConversas(){
+  try {
+    conversas = await conversasStore.list();
+  } catch (err) {
+    showToast('Erro ao carregar conversas: ' + err.message, true);
+    conversas = [];
+  }
+  renderListaConversas();
+}
+
+function renderListaConversas(){
+  const list = $('conv-list');
+  if(!conversas.length){
+    list.innerHTML = '<div class="empty-box">Nenhuma conversa registrada ainda.</div>';
+    return;
+  }
+  list.innerHTML = conversas.map(c => `
+    <button type="button" class="conv-item ${c.id===conversaAtualId?'active':''}" data-id="${c.id}">
+      <div class="row1">
+        <span class="nome">${esc(c.nome_contato || 'Sem nome')}</span>
+        <span class="quando">${quandoTexto(c.ultima_mensagem_em)}</span>
+      </div>
+      <div class="tel">${esc(fmtTelefone(c.telefone))}</div>
+      <div style="margin-top:6px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+        <span class="tag ${c.status}">${c.status === 'aberta' ? 'Aberta' : 'Resolvida'}</span>
+        ${c.frete_numero ? `<span class="frete-tag mono">${esc(c.frete_numero)}</span>` : ''}
+      </div>
+    </button>`).join('');
+}
+
+$('conv-list').addEventListener('click', (e)=>{
+  const btn = e.target.closest('[data-id]');
+  if(!btn) return;
+  abrirConversa(btn.dataset.id);
+});
+
+async function abrirConversa(id){
+  conversaAtualId = id;
+  document.documentElement.style.setProperty('--conv-display', 'none');
+  document.documentElement.style.setProperty('--thread-display', 'flex');
+  renderListaConversas();
+  const c = conversas.find(x => x.id === id);
+  if(!c) return;
+
+  const pane = $('thread-pane');
+  pane.innerHTML = `
+    <div class="thread-head">
+      <div>
+        <h3>${esc(c.nome_contato || 'Sem nome')}</h3>
+        <div class="sub">${esc(fmtTelefone(c.telefone))}${c.frete_numero ? ' · ' + esc(c.frete_numero) : ''}</div>
+      </div>
+      <div class="thread-actions">
+        <button type="button" class="btn-ghost" id="voltar-lista-btn">← Conversas</button>
+        <a class="btn-ghost" href="${waLinkFromTelefone(c.telefone)}" target="_blank" rel="noopener">Abrir no WhatsApp</a>
+        <button type="button" class="btn-ghost" id="toggle-status-btn">${c.status === 'aberta' ? 'Marcar resolvida' : 'Reabrir'}</button>
+      </div>
+    </div>
+    <div class="thread-msgs" id="thread-msgs"><div class="empty-box">Carregando…</div></div>
+    <form class="thread-form" id="thread-form">
+      <div class="direcao-toggle">
+        <button type="button" data-dir="recebida" class="${direcaoSelecionada==='recebida'?'selected':''}">Recebida do cliente</button>
+        <button type="button" data-dir="enviada" class="${direcaoSelecionada==='enviada'?'selected':''}">Enviada por nós</button>
+      </div>
+      <textarea id="msg-texto" placeholder="Escreva o que foi dito na conversa…" required></textarea>
+      <div class="thread-form-actions">
+        <span style="font-size:11px; color:var(--text-faint);">Registro manual — não envia mensagem de verdade pelo WhatsApp.</span>
+        <button type="submit" class="btn-primary">Registrar</button>
+      </div>
+    </form>`;
+
+  $('voltar-lista-btn').addEventListener('click', ()=>{
+    document.documentElement.style.setProperty('--conv-display', 'flex');
+    document.documentElement.style.setProperty('--thread-display', 'none');
+  });
+  $('toggle-status-btn').addEventListener('click', async ()=>{
+    try {
+      await conversasStore.setStatus(c.id, c.status === 'aberta' ? 'resolvida' : 'aberta');
+      await carregarConversas();
+      abrirConversa(c.id);
+    } catch (err) { showToast('Erro ao atualizar status: ' + err.message, true); }
+  });
+  $('thread-pane').querySelectorAll('.direcao-toggle button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      direcaoSelecionada = b.dataset.dir;
+      $('thread-pane').querySelectorAll('.direcao-toggle button').forEach(x=>x.classList.toggle('selected', x===b));
+    });
+  });
+  $('thread-form').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const texto = $('msg-texto').value.trim();
+    if(!texto) return;
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true;
+    try {
+      await mensagensStore.create(c.id, direcaoSelecionada, texto);
+      $('msg-texto').value = '';
+      await Promise.all([renderThreadMsgs(c.id), carregarConversas()]);
+    } catch (err) {
+      showToast('Erro ao registrar mensagem: ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  await renderThreadMsgs(id);
+}
+
+async function renderThreadMsgs(conversaId){
+  const box = $('thread-msgs');
+  if(!box) return;
+  try {
+    const msgs = await mensagensStore.listByConversa(conversaId);
+    box.innerHTML = msgs.length ? msgs.map(m => `
+      <div class="msg ${m.direcao}">
+        ${esc(m.texto)}
+        <span class="meta">${m.direcao === 'recebida' ? 'Cliente' : 'Nós'} · ${quandoTexto(m.criado_em)}</span>
+      </div>`).join('') : '<div class="empty-box">Nenhuma mensagem registrada ainda nesta conversa.</div>';
+    box.scrollTop = box.scrollHeight;
+  } catch (err) {
+    box.innerHTML = '<div class="empty-box">Erro ao carregar mensagens.</div>';
+  }
+}
+
+/* ---------- Nova conversa ---------- */
+$('nova-conversa-btn').addEventListener('click', ()=>{
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h3 id="modal-title">Nova conversa</h3>
+      <form id="nova-conversa-form">
+        <div class="field">
+          <label for="nc-telefone">Telefone (WhatsApp) *</label>
+          <input id="nc-telefone" required placeholder="(41) 99999-0000" inputmode="tel">
+        </div>
+        <div class="field">
+          <label for="nc-nome">Nome do contato</label>
+          <input id="nc-nome" placeholder="Nome do cliente ou motorista">
+        </div>
+        <div class="field">
+          <label for="nc-frete">Nº do frete (opcional)</label>
+          <input id="nc-frete" placeholder="FR-1001">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" id="modal-cancel">Cancelar</button>
+          <button type="submit" class="btn-primary">Criar conversa</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(backdrop);
+  backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+  backdrop.querySelector('#modal-cancel').addEventListener('click', ()=> backdrop.remove());
+  backdrop.querySelector('#nova-conversa-form').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const telefone = backdrop.querySelector('#nc-telefone').value.trim();
+    if(!onlyDigits(telefone)){ showToast('Informe um telefone válido.', true); return; }
+    try {
+      const c = await conversasStore.create({
+        telefone,
+        nomeContato: backdrop.querySelector('#nc-nome').value.trim(),
+        freteNumero: backdrop.querySelector('#nc-frete').value.trim()
+      });
+      backdrop.remove();
+      await carregarConversas();
+      abrirConversa(c.id);
+    } catch (err) {
+      showToast('Erro ao criar conversa: ' + err.message, true);
+    }
+  });
+  backdrop.querySelector('#nc-telefone').focus();
+});
+
+/* ---------- Init ---------- */
+(async function init(){
+  await guardPage();
+  await carregarConversas();
+})().catch(err => console.warn('init:', err.message));
+</script>
+</body>
+</html>
