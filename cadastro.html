@@ -201,19 +201,40 @@
           <legend>Rota</legend>
           <div class="fields">
             <div class="field">
-              <label for="origem">Origem — cidade/UF <span class="req" aria-hidden="true">*</span></label>
-              <input id="origem" name="origem" required placeholder="Curitiba/PR" autocomplete="off">
-              <p class="err" id="origem-err">Informe a cidade de origem.</p>
+              <label for="origemUf">Origem — estado <span class="req" aria-hidden="true">*</span></label>
+              <select id="origemUf" name="origemUf" required aria-describedby="origemUf-err">
+                <option value="">Selecione…</option>
+              </select>
+              <p class="err" id="origemUf-err">Selecione o estado de origem.</p>
             </div>
             <div class="field">
-              <label for="destino">Destino — cidade/UF <span class="req" aria-hidden="true">*</span></label>
-              <input id="destino" name="destino" required placeholder="São Paulo/SP" autocomplete="off">
-              <p class="err" id="destino-err">Informe a cidade de destino.</p>
+              <label for="origemCidade">Origem — cidade <span class="req" aria-hidden="true">*</span></label>
+              <select id="origemCidade" name="origemCidade" required disabled aria-describedby="origemCidade-err">
+                <option value="">Selecione o estado primeiro…</option>
+              </select>
+              <p class="err" id="origemCidade-err">Selecione a cidade de origem.</p>
             </div>
             <div class="field">
+              <label for="destinoUf">Destino — estado <span class="req" aria-hidden="true">*</span></label>
+              <select id="destinoUf" name="destinoUf" required aria-describedby="destinoUf-err">
+                <option value="">Selecione…</option>
+              </select>
+              <p class="err" id="destinoUf-err">Selecione o estado de destino.</p>
+            </div>
+            <div class="field">
+              <label for="destinoCidade">Destino — cidade <span class="req" aria-hidden="true">*</span></label>
+              <select id="destinoCidade" name="destinoCidade" required disabled aria-describedby="destinoCidade-err">
+                <option value="">Selecione o estado primeiro…</option>
+              </select>
+              <p class="err" id="destinoCidade-err">Selecione a cidade de destino.</p>
+            </div>
+            <div class="field wide">
               <label for="distancia">Distância (km) <span class="req" aria-hidden="true">*</span></label>
-              <input id="distancia" name="distancia" class="mono-in" inputmode="numeric" required placeholder="408" aria-describedby="distancia-hint distancia-err">
-              <p class="hint" id="distancia-hint">Rodoviária, ida. O retorno vazio entra no cálculo à parte.</p>
+              <div style="display:flex; gap:8px; align-items:flex-start;">
+                <input id="distancia" name="distancia" class="mono-in" inputmode="numeric" required placeholder="408" style="flex:1" aria-describedby="distancia-hint distancia-err">
+                <button type="button" class="btn-ghost" id="calc-dist-btn" style="white-space:nowrap;">Calcular distância</button>
+              </div>
+              <p class="hint" id="distancia-hint">Escolha origem e destino para calcular, ou digite o km da rota.</p>
               <p class="err" id="distancia-err">Informe a distância em km (número maior que zero).</p>
             </div>
             <div class="field">
@@ -449,8 +470,68 @@
 /* toRow/fromRow, store, PISO, TIPO_LABEL/STATUS_LABEL, brl/num, validação de
    documentos e calcPiso/situacao agora vêm de app.js (compartilhado com o painel). */
 
-/* ---------- Rail ao vivo ---------- */
 const $ = id => document.getElementById(id);
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------- Estados e cidades (IBGE) + distância automática ---------- */
+function populateUfSelect(sel){
+  sel.innerHTML = '<option value="">Selecione…</option>' +
+    UF_LIST.map(u => `<option value="${u.sigla}">${esc(u.nome)} (${u.sigla})</option>`).join('');
+}
+populateUfSelect($('origemUf'));
+populateUfSelect($('destinoUf'));
+
+async function onUfChange(ufId, cidadeId){
+  const uf = $(ufId).value;
+  const cidadeSel = $(cidadeId);
+  if(!uf){ cidadeSel.innerHTML = '<option value="">Selecione o estado primeiro…</option>'; cidadeSel.disabled = true; return; }
+  cidadeSel.innerHTML = '<option value="">Carregando…</option>';
+  cidadeSel.disabled = true;
+  try {
+    const cidades = await getCidades(uf);
+    cidadeSel.innerHTML = '<option value="">Selecione…</option>' + cidades.map(c => `<option>${esc(c)}</option>`).join('');
+    cidadeSel.disabled = false;
+  } catch (err) {
+    cidadeSel.innerHTML = '<option value="">Não foi possível carregar</option>';
+    showToast('Não consegui carregar as cidades de ' + uf + '. Tente de novo.', true);
+  }
+}
+$('origemUf').addEventListener('change', ()=> onUfChange('origemUf','origemCidade'));
+$('destinoUf').addEventListener('change', ()=> onUfChange('destinoUf','destinoCidade'));
+
+async function tentarCalcularDistancia(auto){
+  const oUf = $('origemUf').value, oCid = $('origemCidade').value;
+  const dUf = $('destinoUf').value, dCid = $('destinoCidade').value;
+  const hint = $('distancia-hint');
+  if(!oUf || !oCid || !dUf || !dCid){
+    if(!auto) showToast('Escolha o estado e a cidade de origem e destino antes de calcular.', true);
+    return;
+  }
+  const btn = $('calc-dist-btn');
+  const oldTxt = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Calculando…';
+  try {
+    const res = await distanciaEstimada(oCid, oUf, dCid, dUf);
+    if(res){
+      $('distancia').value = res.km;
+      hint.textContent = 'Estimativa por rota aproximada (linha reta × 1,35) — ajuste se souber o km exato da rota.';
+      updateRail();
+    } else if(!auto) {
+      hint.textContent = 'Não encontrei coordenadas para uma das cidades — informe o km manualmente.';
+    }
+  } catch (err) {
+    if(!auto) hint.textContent = 'Falha ao calcular a distância — informe o km manualmente.';
+  } finally {
+    btn.disabled = false; btn.textContent = oldTxt;
+  }
+}
+$('calc-dist-btn').addEventListener('click', ()=> tentarCalcularDistancia(false));
+/* calcula sozinho assim que origem e destino estiverem completos, se o km ainda não foi digitado */
+['origemCidade','destinoCidade'].forEach(id=>{
+  $(id).addEventListener('change', ()=>{ if(!$('distancia').value.trim()) tentarCalcularDistancia(true); });
+});
+
+/* ---------- Rail ao vivo ---------- */
 function updateRail(){
   const data = {
     tipoCarga: $('tipoCarga').value,
@@ -503,7 +584,7 @@ function updateRail(){
 
 /* ---------- Validação do formulário ---------- */
 const form = $('frete-form');
-const REQUIRED = ['origem','destino','distancia','tipoCarga','eixos','remetente','destinatario','valorFrete','valorMotorista'];
+const REQUIRED = ['origemUf','origemCidade','destinoUf','destinoCidade','distancia','tipoCarga','eixos','remetente','destinatario','valorFrete','valorMotorista'];
 function fieldWrap(el){ return el.closest('.field'); }
 function setError(el, msg){
   const w = fieldWrap(el); if(!w) return;
@@ -569,6 +650,8 @@ form.addEventListener('submit', async (e)=>{
   const piso = calcPiso({ tipoCarga: raw.tipoCarga, eixos: raw.eixos, distancia: raw.distancia, incluirRetorno: $('incluir-retorno').checked });
   const frete = {
     ...raw,
+    origem: `${raw.origemCidade}/${raw.origemUf}`,
+    destino: `${raw.destinoCidade}/${raw.destinoUf}`,
     distancia: parseFloat(String(raw.distancia).replace(',','.')),
     valorFrete: parseMoney(raw.valorFrete),
     valorMotorista: parseMoney(raw.valorMotorista),
@@ -583,6 +666,7 @@ form.addEventListener('submit', async (e)=>{
     const saved = await store.create(frete);
     await render();
     form.reset();
+    resetCidadeSelects();
     updateRail();
     showToast('Frete ' + saved.numero + ' cadastrado.');
     $('saved-flag').classList.add('show');
@@ -594,8 +678,18 @@ form.addEventListener('submit', async (e)=>{
   }
 });
 
+function resetCidadeSelects(){
+  ['origemCidade','destinoCidade'].forEach(id=>{
+    const sel = $(id);
+    sel.innerHTML = '<option value="">Selecione o estado primeiro…</option>';
+    sel.disabled = true;
+  });
+  $('distancia-hint').textContent = 'Escolha origem e destino para calcular, ou digite o km da rota.';
+}
+
 $('reset-btn').addEventListener('click', ()=>{
   form.reset();
+  resetCidadeSelects();
   form.querySelectorAll('.invalid').forEach(w => w.classList.remove('invalid'));
   summary.classList.remove('show');
   updateRail();
@@ -612,7 +706,6 @@ function waLink(frete){
 
 /* ---------- Render da tabela ---------- */
 const tbody = $('frete-tbody');
-function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 async function render(){
   const fretes = await store.list();
   $('list-count').textContent = fretes.length ? fretes.length + (fretes.length === 1 ? ' registro' : ' registros') : '';

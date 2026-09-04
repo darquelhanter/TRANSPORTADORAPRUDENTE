@@ -122,3 +122,73 @@ const store = {
     if (error) throw error;
   }
 };
+
+/* =====================================================================
+   Estados e cidades (IBGE) + distância estimada (Nominatim/OpenStreetMap)
+   ---------------------------------------------------------------------
+   - Lista de UFs: fixa (não muda).
+   - Cidades por UF: API pública do IBGE, cacheada no localStorage
+     (a lista de municípios de um estado praticamente não muda).
+   - Distância: geocodifica as duas cidades (Nominatim, também cacheado)
+     e calcula a distância em linha reta (haversine) corrigida por um
+     fator médio de sinuosidade de rota (ROAD_FACTOR). É uma ESTIMATIVA
+     para agilizar o cadastro — o campo de distância continua editável
+     para quem quiser informar o km exato da rota.
+   ===================================================================== */
+const UF_LIST = [
+  {sigla:'AC',nome:'Acre'},{sigla:'AL',nome:'Alagoas'},{sigla:'AP',nome:'Amapá'},{sigla:'AM',nome:'Amazonas'},
+  {sigla:'BA',nome:'Bahia'},{sigla:'CE',nome:'Ceará'},{sigla:'DF',nome:'Distrito Federal'},{sigla:'ES',nome:'Espírito Santo'},
+  {sigla:'GO',nome:'Goiás'},{sigla:'MA',nome:'Maranhão'},{sigla:'MT',nome:'Mato Grosso'},{sigla:'MS',nome:'Mato Grosso do Sul'},
+  {sigla:'MG',nome:'Minas Gerais'},{sigla:'PA',nome:'Pará'},{sigla:'PB',nome:'Paraíba'},{sigla:'PR',nome:'Paraná'},
+  {sigla:'PE',nome:'Pernambuco'},{sigla:'PI',nome:'Piauí'},{sigla:'RJ',nome:'Rio de Janeiro'},{sigla:'RN',nome:'Rio Grande do Norte'},
+  {sigla:'RS',nome:'Rio Grande do Sul'},{sigla:'RO',nome:'Rondônia'},{sigla:'RR',nome:'Roraima'},{sigla:'SC',nome:'Santa Catarina'},
+  {sigla:'SP',nome:'São Paulo'},{sigla:'SE',nome:'Sergipe'},{sigla:'TO',nome:'Tocantins'}
+];
+const ROAD_FACTOR = 1.35; // linha reta -> estimativa de km de rodovia
+
+async function getCidades(uf){
+  const cacheKey = 'tc_cidades_' + uf;
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch {}
+  const r = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`);
+  if (!r.ok) throw new Error('IBGE: falha ao carregar cidades de ' + uf);
+  const nomes = (await r.json()).map(m => m.nome);
+  try { localStorage.setItem(cacheKey, JSON.stringify(nomes)); } catch {}
+  return nomes;
+}
+
+async function getCoordCidade(cidade, uf){
+  const key = 'tc_geo_' + uf + '_' + cidade.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  try {
+    const cached = localStorage.getItem(key);
+    if (cached) return JSON.parse(cached);
+  } catch {}
+  const q = encodeURIComponent(`${cidade}, ${uf}, Brazil`);
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${q}`);
+  if (!r.ok) return null;
+  const rows = await r.json();
+  if (!rows.length) return null;
+  const coord = { lat: parseFloat(rows[0].lat), lon: parseFloat(rows[0].lon) };
+  try { localStorage.setItem(key, JSON.stringify(coord)); } catch {}
+  return coord;
+}
+
+function haversineKm(lat1, lon1, lat2, lon2){
+  const R = 6371, rad = Math.PI/180;
+  const dLat = (lat2-lat1)*rad, dLon = (lon2-lon1)*rad;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+/* Retorna { km, estimado:true } ou null se alguma cidade não foi geocodificada. */
+async function distanciaEstimada(origemCidade, origemUf, destinoCidade, destinoUf){
+  const [a, b] = await Promise.all([
+    getCoordCidade(origemCidade, origemUf),
+    getCoordCidade(destinoCidade, destinoUf)
+  ]);
+  if (!a || !b) return null;
+  const km = haversineKm(a.lat, a.lon, b.lat, b.lon) * ROAD_FACTOR;
+  return { km: Math.round(km), estimado: true };
+}
