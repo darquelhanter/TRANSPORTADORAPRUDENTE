@@ -6,8 +6,8 @@
    A anon key PODE ficar no código do navegador — quem protege os dados
    são as políticas RLS no banco (ver db/schema.sql).
    ===================================================================== */
-const SUPABASE_URL      = 'https://SEU-PROJETO.supabase.co';
-const SUPABASE_ANON_KEY = 'SUA_ANON_KEY_AQUI';
+const SUPABASE_URL      = 'https://wbtcrvnxojbluduxtyxd.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_BODRYoCdvHGHoAxIc2CcFw_-zd5lscb';
 
 const CONFIGURADO = !SUPABASE_URL.includes('SEU-PROJETO') && !SUPABASE_ANON_KEY.includes('AQUI');
 
