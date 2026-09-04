@@ -196,6 +196,8 @@
         <span class="live-since" id="live-since">atualizado agora</span>
         <button type="button" class="live-toggle" id="live-toggle" aria-pressed="false">Pausar</button>
         <div class="clock" id="clock">--:--:--</div>
+        <span class="mono" style="font-size:12px; color:var(--text-faint);" data-user-email></span>
+        <button type="button" class="live-toggle" data-signout>Sair</button>
       </div>
     </div>
 
@@ -350,7 +352,13 @@
   </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
 <script>
+/* ---------- Exige login (redireciona para login.html se não houver sessão) ---------- */
+if (!CONFIGURADO) { throw new Error('Supabase não configurado — ver SETUP-SUPABASE.md'); }
+guardPage();
+
 /* ---------- Motion preference (used by charts + live loop) ---------- */
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 

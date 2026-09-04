@@ -177,13 +177,17 @@
         <li><a href="index.html#kpis"><span class="dot"></span>Indicadores</a></li>
       </ul>
     </nav>
-    <div class="sidebar-foot">Protótipo. Os fretes ficam salvos só neste navegador (localStorage) — sem servidor ainda.</div>
+    <div class="sidebar-foot">Protótipo. Fretes salvos no Supabase; requer login. Coeficientes ANTT ainda de referência.</div>
   </aside>
 
   <main>
     <div class="topbar">
       <h1>Cadastro de Frete</h1>
-      <span class="proto">protótipo · dados locais</span>
+      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <span class="proto">protótipo</span>
+        <span class="mono" style="font-size:12px; color:var(--text-faint);" data-user-email></span>
+        <button type="button" class="btn-ghost" data-signout>Sair</button>
+      </div>
     </div>
 
     <div class="error-summary" id="error-summary" role="alert" tabindex="-1" aria-labelledby="error-summary-title">
@@ -421,33 +425,52 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
 <script>
 /* =====================================================================
-   Camada de dados — troque só este objeto por Supabase depois.
-   Ex.:  async list(){ const {data} = await supabase.from('fretes')
-           .select('*').order('criado_em',{ascending:false}); return data; }
+   Camada de dados — Supabase. Mapeia o formulário (camelCase) para as
+   colunas da tabela `fretes` (snake_case) e de volta.
    ===================================================================== */
-const STORE_KEY = 'tc_fretes_v1';
+function toRow(f){
+  return {
+    origem:f.origem, destino:f.destino, distancia:f.distancia, previsao:f.previsao || null,
+    tipo_carga:f.tipoCarga, eixos:f.eixos ? parseInt(f.eixos,10) : null, veiculo:f.veiculo || null,
+    peso:f.peso ?? null, valor_mercadoria:f.valorMercadoria ?? null,
+    remetente:f.remetente, remetente_doc:f.remetenteDoc || null,
+    destinatario:f.destinatario, destinatario_doc:f.destinatarioDoc || null,
+    tomador:f.tomador || null, contato_tel:f.contatoTel || null,
+    valor_frete:f.valorFrete, status:f.status || 'confirmado',
+    motorista:f.motorista || null, motorista_cpf:f.motoristaCpf || null,
+    placa_cavalo:f.placaCavalo || null, placa_reboque:f.placaReboque || null,
+    obs:f.obs || null, inclui_retorno:!!f.incluiRetorno, piso_ref:f.pisoRef ?? null
+  };
+}
+function fromRow(r){
+  return {
+    id:r.id, numero:r.numero, criadoEm:r.criado_em,
+    origem:r.origem, destino:r.destino, distancia:r.distancia, previsao:r.previsao,
+    tipoCarga:r.tipo_carga, eixos:r.eixos, veiculo:r.veiculo, peso:r.peso, valorMercadoria:r.valor_mercadoria,
+    remetente:r.remetente, remetenteDoc:r.remetente_doc, destinatario:r.destinatario, destinatarioDoc:r.destinatario_doc,
+    tomador:r.tomador, contatoTel:r.contato_tel, valorFrete:r.valor_frete, status:r.status,
+    motorista:r.motorista, motoristaCpf:r.motorista_cpf, placaCavalo:r.placa_cavalo, placaReboque:r.placa_reboque,
+    obs:r.obs, incluiRetorno:r.inclui_retorno, pisoRef:r.piso_ref
+  };
+}
 const store = {
   async list(){
-    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
-    catch { return []; }
-  },
-  async _saveAll(arr){
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(arr)); } catch (e) { console.warn('localStorage indisponível', e); }
+    const { data, error } = await sb.from('fretes').select('*').order('criado_em', { ascending:false });
+    if (error) throw error;
+    return data.map(fromRow);
   },
   async create(frete){
-    const arr = await this.list();
-    frete.id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
-    frete.numero = 'FR-' + String(1000 + arr.length + 1);
-    frete.criadoEm = new Date().toISOString();
-    arr.unshift(frete);
-    await this._saveAll(arr);
-    return frete;
+    const { data, error } = await sb.from('fretes').insert(toRow(frete)).select().single();
+    if (error) throw error;
+    return fromRow(data);
   },
   async remove(id){
-    const arr = (await this.list()).filter(f => f.id !== id);
-    await this._saveAll(arr);
+    const { error } = await sb.from('fretes').delete().eq('id', id);
+    if (error) throw error;
   }
 };
 
@@ -620,8 +643,7 @@ form.addEventListener('submit', async (e)=>{
     peso: raw.peso ? parseInt(onlyDigits(raw.peso), 10) : null,
     contatoTel: onlyDigits(raw.contatoTel),
     incluiRetorno: $('incluir-retorno').checked,
-    pisoRef: piso ? Math.round(piso.total * 100) / 100 : null,
-    exemplo: false
+    pisoRef: piso ? Math.round(piso.total * 100) / 100 : null
   };
 
   try {
@@ -666,7 +688,7 @@ async function render(){
     const s = situacao(f.valorFrete, f.pisoRef);
     const wa = waLink(f);
     return `<tr>
-      <td class="mono">${esc(f.numero)}${f.exemplo ? ' <span class="tag neutral">exemplo</span>' : ''}</td>
+      <td class="mono">${esc(f.numero)}</td>
       <td>${esc(f.origem)} <span class="rota">→ ${esc(f.destino)}</span><br><span class="rota">${num.format(f.distancia||0)} km</span></td>
       <td>${esc(TIPO_LABEL[f.tipoCarga] || f.tipoCarga || '—')}<br><span class="rota">${esc(f.eixos || '—')} eixos</span></td>
       <td class="mono">${isFinite(f.valorFrete) ? brl.format(f.valorFrete) : '—'}</td>
@@ -702,27 +724,16 @@ function showToast(msg, isError){
   toastTimer = setTimeout(()=> t.classList.remove('show'), 3500);
 }
 
-/* ---------- Seed de exemplo (só na primeira vez) ---------- */
-async function seedIfEmpty(){
-  const existing = await store.list();
-  if(existing.length) return;
-  const exemplos = [
-    {origem:'Curitiba/PR', destino:'São Paulo/SP', distancia:408, tipoCarga:'geral', eixos:'6', veiculo:'Carreta (simples)', valorFrete:4820, remetente:'Metalúrgica Vitória Ltda', destinatario:'Distribuidora Andrade S.A.', tomador:'remetente', status:'rota', motorista:'Adilson Rocha', contatoTel:'41999990001', incluiRetorno:false},
-    {origem:'Curitiba/PR', destino:'Florianópolis/SC', distancia:300, tipoCarga:'frigorificada', eixos:'5', veiculo:'Carreta (simples)', valorFrete:3100, remetente:'Frigorífico Sul Ltda', destinatario:'Rede Bom Preço', tomador:'destinatario', status:'confirmado', motorista:'Elaine Souza', contatoTel:'48999990002', incluiRetorno:true},
-    {origem:'Araucária/PR', destino:'Londrina/PR', distancia:380, tipoCarga:'granel_solido', eixos:'4', veiculo:'Truck', valorFrete:2480, remetente:'Cooperativa Agroforte', destinatario:'Moinho Paranaense', tomador:'remetente', status:'entregue', motorista:'Marcos Vinícius', contatoTel:'43999990003', incluiRetorno:false}
-  ];
-  for(const ex of exemplos){
-    const p = calcPiso({tipoCarga:ex.tipoCarga, eixos:ex.eixos, distancia:ex.distancia, incluirRetorno:ex.incluiRetorno});
-    await store.create({...ex, valorMercadoria:null, peso:null, pisoRef: p ? Math.round(p.total*100)/100 : null, exemplo:true});
-  }
-}
-
 /* ---------- Init ---------- */
 (async function init(){
-  await seedIfEmpty();
-  await render();
+  await guardPage();                 // exige login; redireciona para login.html se não houver sessão
   updateRail();
-})();
+  try {
+    await render();
+  } catch (err) {
+    showToast('Erro ao carregar fretes: ' + err.message, true);
+  }
+})().catch(err => console.warn('init:', err.message));
 </script>
 </body>
 </html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Acesso à Torre de Controle — painel operacional da frente logística.">
+<title>Entrar — Torre de Controle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14171b; --panel:#1b1f24; --panel-alt:#20252b; --border:#2b3138; --border-soft:#242a30;
+    --text:#e9e7e2; --text-muted:#8b929b; --text-faint:#949aa4;
+    --amber:#f2a900; --teal:#2fbf87; --coral:#e8604c; --radius:3px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
+  h1,h2{font-family:'Barlow Condensed',sans-serif; font-weight:600; letter-spacing:.01em;}
+  a{color:var(--amber);}
+  button:focus-visible, input:focus-visible, a:focus-visible{outline:2px solid var(--amber); outline-offset:2px; border-radius:2px;}
+  :focus:not(:focus-visible){outline:none;}
+
+  .wrap{min-height:100vh; display:grid; place-items:center; padding:24px;}
+  .card{width:100%; max-width:380px; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:28px;}
+  .brand{display:flex; align-items:center; gap:12px; margin-bottom:22px; padding-bottom:20px; border-bottom:1px solid var(--border-soft);}
+  .brand .mark{width:34px; height:34px; background:var(--amber); border-radius:2px; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed'; font-weight:700; color:#14171b; font-size:17px;}
+  .brand .name{font-family:'Barlow Condensed'; font-size:18px; font-weight:600; line-height:1.15;}
+  .brand .sub{font-size:11px; color:var(--text-muted);}
+
+  h1{font-size:20px; margin-bottom:4px;}
+  .lead{font-size:12px; color:var(--text-faint); margin-bottom:20px;}
+
+  form{display:flex; flex-direction:column; gap:14px;}
+  .field{display:flex; flex-direction:column; gap:5px;}
+  label{font-size:12px; color:var(--text-muted);}
+  input{font:inherit; font-size:13px; color:var(--text); background:var(--panel-alt); border:1px solid var(--border); border-radius:2px; padding:9px 11px;}
+  input::placeholder{color:var(--text-faint);}
+
+  button.primary{font:inherit; font-size:13px; font-weight:600; cursor:pointer; background:var(--amber); color:#14171b; border:0; border-radius:2px; padding:10px 16px; margin-top:4px;}
+  button.primary:hover{background:#ffbb1a;}
+  button.primary[disabled]{opacity:.55; cursor:progress;}
+
+  .toggle{margin-top:16px; font-size:12px; color:var(--text-muted); text-align:center;}
+  .toggle button{background:none; border:0; color:var(--amber); font:inherit; cursor:pointer; text-decoration:underline;}
+
+  .msg{font-size:12px; padding:9px 11px; border-radius:2px; display:none;}
+  .msg.show{display:block;}
+  .msg.err{background:rgba(232,96,76,.1); color:var(--coral);}
+  .msg.ok{background:rgba(47,191,135,.1); color:var(--teal);}
+
+  .foot{margin-top:22px; padding-top:16px; border-top:1px solid var(--border-soft); font-size:11px; color:var(--text-faint); line-height:1.5;}
+  @media (prefers-reduced-motion: reduce){ *{transition:none!important;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="brand">
+      <div class="mark">TC</div>
+      <div>
+        <div class="name">Torre de Controle</div>
+        <div class="sub">Frente Operacional — Filial Sul</div>
+      </div>
+    </div>
+
+    <h1 id="form-title">Entrar</h1>
+    <p class="lead" id="form-lead">Acesse com seu e-mail e senha.</p>
+
+    <div class="msg" id="msg" role="alert" aria-live="polite"></div>
+
+    <form id="auth-form" novalidate>
+      <div class="field">
+        <label for="email">E-mail</label>
+        <input id="email" name="email" type="email" autocomplete="email" required placeholder="voce@transportadora.com.br">
+      </div>
+      <div class="field">
+        <label for="senha">Senha</label>
+        <input id="senha" name="senha" type="password" autocomplete="current-password" required minlength="6" placeholder="mínimo 6 caracteres">
+      </div>
+      <button type="submit" class="primary" id="submit-btn">Entrar</button>
+    </form>
+
+    <p class="toggle" id="toggle-line">
+      Ainda não tem acesso? <button type="button" data-toggle>Criar conta</button>
+    </p>
+
+    <p class="foot">
+      Autenticação via Supabase. A criação de conta pode exigir confirmação por e-mail,
+      conforme a configuração do projeto.
+    </p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
+<script>
+(async function(){
+  // Se já está logado, vai direto pro painel
+  if (typeof CONFIGURADO !== 'undefined' && CONFIGURADO){
+    const s = await auth.session();
+    if (s){ location.replace('index.html'); return; }
+  } else {
+    showMsg('Supabase não configurado — edite supabase.js (ver SETUP-SUPABASE.md).', 'err');
+    document.getElementById('submit-btn').disabled = true;
+  }
+
+  let mode = 'signin';
+  const form   = document.getElementById('auth-form');
+  const btn    = document.getElementById('submit-btn');
+  const title  = document.getElementById('form-title');
+  const lead   = document.getElementById('form-lead');
+  const tLine  = document.getElementById('toggle-line');
+  const senha  = document.getElementById('senha');
+
+  function applyMode(){
+    hideMsg();
+    if (mode === 'signup'){
+      title.textContent = 'Criar conta';
+      lead.textContent  = 'Cadastre um e-mail e senha para acessar o painel.';
+      btn.textContent   = 'Criar conta';
+      senha.autocomplete = 'new-password';
+      tLine.innerHTML = 'Já tem acesso? <button type="button" data-toggle>Entrar</button>';
+    } else {
+      title.textContent = 'Entrar';
+      lead.textContent  = 'Acesse com seu e-mail e senha.';
+      btn.textContent   = 'Entrar';
+      senha.autocomplete = 'current-password';
+      tLine.innerHTML = 'Ainda não tem acesso? <button type="button" data-toggle>Criar conta</button>';
+    }
+  }
+  tLine.addEventListener('click', (e)=>{
+    if (!e.target.closest('[data-toggle]')) return;
+    mode = mode === 'signin' ? 'signup' : 'signin';
+    applyMode();
+  });
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    hideMsg();
+    const email = document.getElementById('email').value.trim();
+    const pass  = senha.value;
+    if (!email || pass.length < 6){ showMsg('Informe um e-mail válido e senha de 6+ caracteres.', 'err'); return; }
+
+    btn.disabled = true; btn.textContent = mode === 'signup' ? 'Criando…' : 'Entrando…';
+    try {
+      if (mode === 'signup'){
+        const { session } = await auth.signUp(email, pass);
+        if (session){ location.replace('index.html'); }
+        else { showMsg('Conta criada. Confirme o e-mail enviado e depois faça login.', 'ok'); btn.textContent = 'Criar conta'; }
+      } else {
+        await auth.signIn(email, pass);
+        location.replace('index.html');
+      }
+    } catch (err){
+      showMsg(traduz(err.message), 'err');
+      btn.textContent = mode === 'signup' ? 'Criar conta' : 'Entrar';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  function showMsg(t, cls){ const m = document.getElementById('msg'); m.textContent = t; m.className = 'msg show ' + cls; }
+  function hideMsg(){ document.getElementById('msg').className = 'msg'; }
+  function traduz(m){
+    if (/Invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
+    if (/already registered/i.test(m)) return 'Este e-mail já tem conta. Faça login.';
+    if (/Email not confirmed/i.test(m)) return 'Confirme o e-mail antes de entrar.';
+    if (/rate limit/i.test(m)) return 'Muitas tentativas. Aguarde um pouco.';
+    return m;
+  }
+})();
+</script>
+</body>
+</html>
